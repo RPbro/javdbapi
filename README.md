@@ -1,1 +1,113 @@
 # javdbapi
+
+## Installation
+
+```shell
+go get -u github.com/NERVEbing/javdbapi
+```
+
+## Getting started
+
+```go
+package main
+
+import (
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/NERVEbing/javdbapi"
+)
+
+func main() {
+	client := javdbapi.NewClient(
+		// optional
+		javdbapi.WithDomain("https://javdb008.com"),
+		// optional
+		javdbapi.WithUserAgent("Mozilla/5.0 (Macintosh; ..."),
+		// optional
+		javdbapi.WithProxy("http://127.0.0.1:7890"),
+		// optional
+		javdbapi.WithTimeout(time.Second*30),
+	)
+
+	// optional: use other http.client
+	c := &http.Client{}
+	client.SetClient(c)
+
+	// homepage
+	result, err := client.GetHomes().
+		SetCategoryCensored().
+		SetFilterByCanDownload().
+		SetSortByMagnetUpdate().
+		SetPage(2).
+		SetLimit(10).
+		WithDetails().
+		WithReviews().
+		WithDebug().
+		Get()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(len(result))
+}
+```
+
+```go
+	// use raw url
+	_, err := client.GetRaw().
+		SetRaw("https://javdb.com").
+		Get()
+	if err != nil {
+		panic(err)
+	}
+```
+
+```go
+	// homepage
+	_, err = client.GetHomes().
+		SetCategoryCensored().
+		SetFilterByCanDownload().
+		SetSortByMagnetUpdate().
+		Get()
+	if err != nil {
+		panic(err)
+	}
+```
+
+```go
+	// actors
+	_, err = client.GetActors().
+		SetActor("M4Q7"). // M4Q7 is 明里つむぎ, see https://javdb.com/actors
+		SetFilterHasZH().
+		SetFilterPlayable().
+		Get()
+	if err != nil {
+		panic(err)
+	}
+```
+
+```go
+	// makers
+	_, err = client.GetMakers().
+		SetMaker("7R"). // 7R is S1 NO.1 STYLE, see https://javdb.com/makers
+		SetFilterSingle().
+		SetFilterHasPreview().
+		Get()
+	if err != nil {
+		panic(err)
+	}
+```
+
+```go
+	// rankings
+	_, err = client.GetRankings().
+		SetCategoryCensored().
+		SetTimeMonthly().
+		Get()
+	if err != nil {
+		panic(err)
+	}
+}
+```
