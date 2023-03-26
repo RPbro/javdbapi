@@ -203,7 +203,7 @@ func (r *request) requestDetails() (*JavDB, error) {
 		// magnets
 		doc.Find("#magnets-content .magnet-name > a").Each(func(i int, selection *goquery.Selection) {
 			magnet, exists := selection.Attr("href")
-			if !exists || !StrIsMagnet(magnet) {
+			if !exists || !strIsMagnet(magnet) {
 				return
 			}
 			magnets = append(magnets, magnet)

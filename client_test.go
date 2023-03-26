@@ -13,7 +13,6 @@ func TestNewClient(t *testing.T) {
 	client := NewClient(
 		WithDomain(domain),
 		WithTimeout(timeout),
-		WithUserAgent(randomUA()),
 	)
 	result, err := client.GetRankings().
 		WithDebug().

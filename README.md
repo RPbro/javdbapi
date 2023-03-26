@@ -111,3 +111,26 @@ func main() {
 	}
 }
 ```
+
+```go
+type JavDB struct {
+        req *request
+        // basic
+        Path       string    `json:"path"`
+        Code       string    `json:"code"`
+        Title      string    `json:"title"`
+        Cover      string    `json:"cover"`
+        Score      float64   `json:"score"`
+        ScoreCount int       `json:"score_count"`
+        PubDate    time.Time `json:"pub_date"`
+        HasZH      bool      `json:"has_zh"`
+        // WithDetails()
+        Preview   string   `json:"preview"`
+        Actresses []string `json:"actresses"`
+        Tags      []string `json:"tags"`
+        Pics      []string `json:"pics"`
+        Magnets   []string `json:"magnets"`
+        // WithReviews()
+        Reviews []string `json:"reviews"`
+}
+```

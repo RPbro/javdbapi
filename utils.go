@@ -17,16 +17,16 @@ func strIsInt(s string) bool {
 	return err == nil
 }
 
-func StrIsMagnet(s string) bool {
+func strIsMagnet(s string) bool {
 	re := regexp.MustCompile(`^magnet:\?xt=urn:btih:[0-9a-fA-F]{32,40}.*$`)
 	return re.MatchString(s)
 }
 
-type MSet map[any]struct{}
+type mSet map[any]struct{}
 
 func duplicateRemoving[T any](s []T) []T {
 	res := make([]T, 0, len(s))
-	m := make(MSet)
+	m := make(mSet)
 	for _, t := range s {
 		if _, ok := m[t]; !ok {
 			res = append(res, t)
