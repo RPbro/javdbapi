@@ -1,6 +1,8 @@
 package javdbapi
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -11,10 +13,13 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+var errorFiltered = errors.New("filtered")
+
 type request struct {
 	client *http.Client
 	ua     string
 	limit  int
+	filter Filter
 	url    string
 }
 
@@ -27,6 +32,7 @@ func (r *request) requestList() ([]*JavDB, error) {
 
 	var results []*JavDB
 	var count int
+
 	doc, err := goquery.NewDocumentFromReader(reader)
 	if err != nil {
 		return nil, err
@@ -95,6 +101,12 @@ func (r *request) requestList() ([]*JavDB, error) {
 			if err != nil {
 				return
 			}
+			if r.filter.ScoreGT > 0 && score < r.filter.ScoreGT {
+				return
+			}
+			if r.filter.ScoreLT > 0 && score > r.filter.ScoreLT {
+				return
+			}
 			// scoreCount
 			scoreCountTextArr := strings.Split(scoreCountText, "人評價")
 			if len(scoreCountTextArr) == 2 && len(strings.Split(scoreCountTextArr[0], "由")) == 2 {
@@ -102,6 +114,12 @@ func (r *request) requestList() ([]*JavDB, error) {
 				if err != nil {
 					return
 				}
+			}
+			if r.filter.ScoreCountGT > 0 && scoreCount < r.filter.ScoreCountGT {
+				return
+			}
+			if r.filter.ScoreCountLT > 0 && scoreCount > r.filter.ScoreCountLT {
+				return
 			}
 		}
 
@@ -118,12 +136,21 @@ func (r *request) requestList() ([]*JavDB, error) {
 				}
 				pubDate = pubDateTime
 			}
+			if !r.filter.PubDateBefore.IsZero() && pubDate.After(r.filter.PubDateBefore) {
+				return
+			}
+			if !r.filter.PubDateAfter.IsZero() && pubDate.Before(r.filter.PubDateAfter) {
+				return
+			}
 		}
 
 		{
 			// hasZH
 			if strTrimSpace(selection.Find(".tag, .is-warning").Text()) == "含中字磁鏈" {
 				hasZH = true
+			}
+			if r.filter.HasZH && r.filter.HasZH != hasZH {
+				return
 			}
 		}
 
@@ -186,6 +213,29 @@ func (r *request) requestDetails() (*JavDB, error) {
 				})
 			}
 		})
+		if len(actresses) == 0 || len(tags) == 0 {
+			return nil, errorFiltered
+		}
+		if len(r.filter.ActressesIn) > 0 {
+			if !sliceContainsAny(actresses, r.filter.ActressesIn) {
+				return nil, errorFiltered
+			}
+		}
+		if len(r.filter.ActressesNotIn) > 0 {
+			if sliceContainsAny(actresses, r.filter.ActressesNotIn) {
+				return nil, errorFiltered
+			}
+		}
+		if len(r.filter.TagsIn) > 0 {
+			if !sliceContainsAny(tags, r.filter.TagsIn) {
+				return nil, errorFiltered
+			}
+		}
+		if len(r.filter.TagsNotIn) > 0 {
+			if sliceContainsAny(tags, r.filter.TagsNotIn) {
+				return nil, errorFiltered
+			}
+		}
 	}
 
 	{
@@ -197,6 +247,9 @@ func (r *request) requestDetails() (*JavDB, error) {
 			}
 			pics = append(pics, pic)
 		})
+		if r.filter.HasPics && len(pics) == 0 {
+			return nil, errorFiltered
+		}
 	}
 
 	{
@@ -208,6 +261,9 @@ func (r *request) requestDetails() (*JavDB, error) {
 			}
 			magnets = append(magnets, magnet)
 		})
+		if r.filter.HasMagnets && len(magnets) == 0 {
+			return nil, errorFiltered
+		}
 	}
 
 	{
@@ -218,6 +274,9 @@ func (r *request) requestDetails() (*JavDB, error) {
 				previewText = "https:" + previewText
 			}
 			preview = previewText
+		}
+		if r.filter.HasPreview && len(preview) == 0 {
+			return nil, errorFiltered
 		}
 	}
 
@@ -237,12 +296,13 @@ func (r *request) requestReviews() (*JavDB, error) {
 	}
 	defer reader.Close()
 
+	var reviews []string
+
 	doc, err := goquery.NewDocumentFromReader(reader)
 	if err != nil {
 		return nil, err
 	}
 
-	var reviews []string
 	{
 		doc.Find(".review-item > .content").Each(func(i int, selection *goquery.Selection) {
 			review := strTrimSpace(selection.Text())
@@ -251,6 +311,9 @@ func (r *request) requestReviews() (*JavDB, error) {
 			}
 			reviews = append(reviews, review)
 		})
+		if r.filter.HasReviews && len(reviews) == 0 {
+			return nil, errorFiltered
+		}
 	}
 
 	return &JavDB{
@@ -259,6 +322,7 @@ func (r *request) requestReviews() (*JavDB, error) {
 }
 
 func (r *request) do() (io.ReadCloser, error) {
+	fmt.Println(r.url)
 	req, err := http.NewRequest(http.MethodGet, r.url, nil)
 	if err != nil {
 		return nil, err

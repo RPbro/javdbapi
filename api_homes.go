@@ -61,6 +61,11 @@ func (a *APIHomes) SetLimit(limit int) *APIHomes {
 	return a
 }
 
+func (a *APIHomes) SetFilter(filter Filter) *APIHomes {
+	a.base.SetFilter(filter)
+	return a
+}
+
 func (a *APIHomes) SetCategoryAll() *APIHomes {
 	a.Category = HomesCategoryAll
 	return a

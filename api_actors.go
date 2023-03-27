@@ -55,6 +55,11 @@ func (a *APIActors) SetLimit(limit int) *APIActors {
 	return a
 }
 
+func (a *APIActors) SetFilter(filter Filter) *APIActors {
+	a.base.SetFilter(filter)
+	return a
+}
+
 func (a *APIActors) SetActor(actor string) *APIActors {
 	a.Actor = actor
 	return a

@@ -5,7 +5,8 @@ import (
 )
 
 type JavDB struct {
-	req *request
+	req     *request
+	deleted bool
 
 	Path       string    `json:"path"`
 	Code       string    `json:"code"`
@@ -35,6 +36,9 @@ func (j *JavDB) loadList() ([]*JavDB, error) {
 }
 
 func (j *JavDB) loadDetails() error {
+	if j.deleted {
+		return nil
+	}
 	r, err := j.req.requestDetails()
 	if err != nil {
 		return err
@@ -49,6 +53,9 @@ func (j *JavDB) loadDetails() error {
 }
 
 func (j *JavDB) loadReviews() error {
+	if j.deleted {
+		return nil
+	}
 	r, err := j.req.requestReviews()
 	if err != nil {
 		return err

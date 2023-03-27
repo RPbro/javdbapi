@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type API struct {
@@ -15,6 +16,25 @@ type API struct {
 	withDebug   bool
 	Page        int
 	Limit       int
+	Filter      Filter
+}
+
+type Filter struct {
+	ScoreGT        float64
+	ScoreLT        float64
+	ScoreCountGT   int
+	ScoreCountLT   int
+	PubDateBefore  time.Time
+	PubDateAfter   time.Time
+	HasZH          bool
+	HasPreview     bool
+	ActressesIn    []string
+	ActressesNotIn []string
+	TagsIn         []string
+	TagsNotIn      []string
+	HasPics        bool
+	HasMagnets     bool
+	HasReviews     bool
 }
 
 func (a *API) WithDetails() *API {
@@ -52,6 +72,11 @@ func (a *API) SetLimit(limit int) *API {
 	return a
 }
 
+func (a *API) SetFilter(filter Filter) *API {
+	a.Filter = filter
+	return a
+}
+
 func (a *API) Get(t interface{}) ([]*JavDB, error) {
 	u, err := url.Parse(a.client.Domain)
 	if err != nil {
@@ -84,7 +109,7 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 	case *APIActors:
 		u.Path = PathActors + "/" + p.Actor
 		u = urlQueriesSet(u, map[string]string{
-			"t": strings.Join(duplicateRemoving(p.Filter), ","),
+			"t": strings.Join(sliceDuplicateRemoving(p.Filter), ","),
 		})
 	default:
 		return nil, err
@@ -98,32 +123,48 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 			client: a.client.HTTP,
 			ua:     a.client.UserAgent,
 			limit:  a.Limit,
+			filter: a.Filter,
 			url:    u.String(),
 		},
 	}
 
-	results, err := j.loadList()
+	items, err := j.loadList()
 	if err != nil {
 		return nil, err
 	}
 
 	if a.withDetails {
-		for _, i := range results {
-			i.req.url = a.client.Domain + i.Path
-			err = i.loadDetails()
+		for _, v := range items {
+			v.req.url = a.client.Domain + v.Path
+			err = v.loadDetails()
 			if err != nil {
-				return nil, err
+				if err != errorFiltered {
+					return nil, err
+				}
+				v.deleted = true
 			}
 		}
 	}
 	if a.withReviews {
-		for _, i := range results {
-			i.req.url = a.client.Domain + i.Path + PathReviews
-			err = i.loadReviews()
+		for _, v := range items {
+			v.req.url = a.client.Domain + v.Path + PathReviews
+			err = v.loadReviews()
 			if err != nil {
-				return nil, err
+				if err != errorFiltered {
+					return nil, err
+				}
+				v.deleted = true
 			}
 		}
+	}
+
+	var results []*JavDB
+
+	for _, item := range items {
+		if item.deleted {
+			continue
+		}
+		results = append(results, item)
 	}
 
 	if a.withDebug {

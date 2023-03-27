@@ -43,6 +43,11 @@ func (a *APIRaw) SetLimit(limit int) *APIRaw {
 	return a
 }
 
+func (a *APIRaw) SetFilter(filter Filter) *APIRaw {
+	a.base.SetFilter(filter)
+	return a
+}
+
 func (a *APIRaw) SetRaw(raw string) *APIRaw {
 	a.Raw = raw
 	return a

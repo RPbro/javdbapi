@@ -14,16 +14,29 @@ func TestNewClient(t *testing.T) {
 		WithDomain(domain),
 		WithTimeout(timeout),
 	)
-	result, err := client.GetRankings().
-		WithDebug().
-		SetCategoryCensored().
-		SetTimeMonthly().
+
+	filter := Filter{
+		HasZH:      true,
+		HasPreview: true,
+		HasPics:    true,
+		HasMagnets: true,
+		HasReviews: true,
+	}
+
+	results, err := client.GetRaw().
+		WithDetails().
+		WithReviews().
+		SetRaw("https://javdb.com/tags?c10=1,2,3,5").
 		SetPage(1).
-		SetLimit(1).
+		SetLimit(10).
+		SetFilter(filter).
 		Get()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(len(result))
+	for _, v := range results {
+		fmt.Println(v)
+	}
+	fmt.Println(len(results))
 }

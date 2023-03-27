@@ -56,6 +56,11 @@ func (a *APIMakers) SetLimit(limit int) *APIMakers {
 	return a
 }
 
+func (a *APIMakers) SetFilter(filter Filter) *APIMakers {
+	a.base.SetFilter(filter)
+	return a
+}
+
 func (a *APIMakers) SetMaker(maker string) *APIMakers {
 	a.Maker = maker
 	return a

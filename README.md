@@ -35,33 +35,41 @@ func main() {
 	c := &http.Client{}
 	client.SetClient(c)
 
-	// homepage
-	result, err := client.GetHomes().
-		SetCategoryCensored().
-		SetFilterByCanDownload().
-		SetSortByMagnetUpdate().
-		SetPage(2).
-		SetLimit(10).
+	// optional: filter
+	filter := Filter{
+		ScoreGT:        0,
+		ScoreLT:        0,
+		ScoreCountGT:   0,
+		ScoreCountLT:   0,
+		PubDateBefore:  time.Time{},
+		PubDateAfter:   time.Time{},
+		HasZH:          false,
+		HasPreview:     false,
+		ActressesIn:    nil,
+		ActressesNotIn: nil,
+		TagsIn:         nil,
+		TagsNotIn:      nil,
+		HasPics:        false,
+		HasMagnets:     false,
+		HasReviews:     false,
+	}
+
+	results, err := client.GetRaw().
 		WithDetails().
 		WithReviews().
-		WithDebug().
+		SetRaw("https://javdb.com/tags?c10=1,2,3,5").
+		SetPage(1).
+		SetLimit(10).
+		SetFilter(filter).
 		Get()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(len(result))
+	for _, v := range results {
+		fmt.Println(v)
+	}
 }
-```
-
-```go
-	// use raw url
-	_, err := client.GetRaw().
-		SetRaw("https://javdb.com").
-		Get()
-	if err != nil {
-		panic(err)
-	}
 ```
 
 ```go

@@ -55,6 +55,11 @@ func (a *APIRankings) SetLimit(limit int) *APIRankings {
 	return a
 }
 
+func (a *APIRankings) SetFilter(filter Filter) *APIRankings {
+	a.base.SetFilter(filter)
+	return a
+}
+
 func (a *APIRankings) SetCategoryCensored() *APIRankings {
 	a.Category = RankingsCategoryCensored
 	return a
