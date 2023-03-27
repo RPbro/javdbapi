@@ -49,6 +49,31 @@ func (j *JavDB) loadDetails() error {
 	j.Pics = r.Pics
 	j.Magnets = r.Magnets
 
+	if len(j.Path) == 0 {
+		j.Path = r.Path
+	}
+	if len(j.Code) == 0 {
+		j.Code = r.Code
+	}
+	if len(j.Title) == 0 {
+		j.Title = r.Title
+	}
+	if len(j.Cover) == 0 {
+		j.Cover = r.Cover
+	}
+	if j.Score == 0 {
+		j.Score = r.Score
+	}
+	if j.ScoreCount == 0 {
+		j.ScoreCount = r.ScoreCount
+	}
+	if j.PubDate.IsZero() {
+		j.PubDate = r.PubDate
+	}
+	if j.HasZH == false {
+		j.HasZH = r.HasZH
+	}
+
 	return nil
 }
 

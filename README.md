@@ -73,6 +73,17 @@ func main() {
 ```
 
 ```go
+	// details
+	_, err = client.GetFirst().
+		WithReviews().
+		SetRaw("https://javdb008.com/v/5EOxMY").
+		First()
+	if err != nil {
+		panic(err)
+	}
+```
+
+```go
 	// homepage
 	_, err = client.GetHomes().
 		SetCategoryCensored().

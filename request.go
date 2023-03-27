@@ -2,9 +2,9 @@ package javdbapi
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -181,6 +181,12 @@ func (r *request) requestDetails() (*JavDB, error) {
 	var (
 		actresses, tags, pics, magnets []string
 		preview                        string
+
+		title, code, cover, path string
+		score                    float64
+		scoreCount               int
+		pubDate                  time.Time
+		hasZH                    bool
 	)
 
 	doc, err := goquery.NewDocumentFromReader(reader)
@@ -189,8 +195,64 @@ func (r *request) requestDetails() (*JavDB, error) {
 	}
 
 	{
+		// title
+		title = strTrimSpace(doc.Find(".current-title").First().Text())
+	}
+
+	{
+		// cover
+		coverText, exists := doc.Find(".video-cover").Attr("src")
+		if exists {
+			cover = strTrimSpace(coverText)
+		}
+	}
+
+	{
 		doc.Find(".panel-block > strong").Each(func(i int, selection *goquery.Selection) {
 			switch selection.Text() {
+			case "番號:":
+				// code
+				code = strings.ToUpper(strTrimSpace(selection.Next().Text()))
+				if len(strings.Split(code, "-")) != 2 || !strIsInt(strings.Split(code, "-")[1]) {
+					return
+				}
+			case "日期:":
+				// pubDate
+				pubDateText := strTrimSpace(selection.Next().Text())
+				if len(pubDateText) > 0 {
+					pubDateTime, err := time.Parse("2006-01-02", pubDateText)
+					if err != nil {
+						return
+					}
+					if pubDateTime.Unix() <= 0 {
+						return
+					}
+					pubDate = pubDateTime
+				}
+			case "評分:":
+				scoreArr := strings.Split(strTrimSpace(selection.Next().Text()), ",")
+				if len(scoreArr) != 2 {
+					return
+				}
+				scoreText := scoreArr[0]
+				scoreCountText := scoreArr[1]
+				scoreTextArr := strings.Split(scoreText, "分")
+				if len(scoreTextArr) != 2 {
+					return
+				}
+				// score
+				score, err = strconv.ParseFloat(scoreTextArr[0], 64)
+				if err != nil {
+					return
+				}
+				// scoreCount
+				scoreCountTextArr := strings.Split(scoreCountText, "人評價")
+				if len(scoreCountTextArr) == 2 && len(strings.Split(scoreCountTextArr[0], "由")) == 2 {
+					scoreCount, err = strconv.Atoi(strings.Split(scoreCountTextArr[0], "由")[1])
+					if err != nil {
+						return
+					}
+				}
 			case "演員:":
 				// actresses
 				selection.Parent().Find(".value > .female").Each(func(i int, selection *goquery.Selection) {
@@ -260,6 +322,9 @@ func (r *request) requestDetails() (*JavDB, error) {
 				return
 			}
 			magnets = append(magnets, magnet)
+			if strings.Contains(strTrimSpace(selection.Find(".tags").Text()), "字幕") {
+				hasZH = true
+			}
 		})
 		if r.filter.HasMagnets && len(magnets) == 0 {
 			return nil, errorFiltered
@@ -280,12 +345,29 @@ func (r *request) requestDetails() (*JavDB, error) {
 		}
 	}
 
+	{
+		// path
+		u, err := url.Parse(r.url)
+		if err != nil {
+			return nil, err
+		}
+		path = u.Path
+	}
+
 	return &JavDB{
-		Preview:   preview,
-		Actresses: actresses,
-		Tags:      tags,
-		Pics:      pics,
-		Magnets:   magnets,
+		Path:       path,
+		Code:       code,
+		Title:      title,
+		Cover:      cover,
+		Score:      score,
+		ScoreCount: scoreCount,
+		PubDate:    pubDate,
+		HasZH:      hasZH,
+		Preview:    preview,
+		Actresses:  actresses,
+		Tags:       tags,
+		Pics:       pics,
+		Magnets:    magnets,
 	}, nil
 }
 
@@ -304,6 +386,7 @@ func (r *request) requestReviews() (*JavDB, error) {
 	}
 
 	{
+		// reviews
 		doc.Find(".review-item > .content").Each(func(i int, selection *goquery.Selection) {
 			review := strTrimSpace(selection.Text())
 			if utf8.RuneCountInString(review) == 0 {
@@ -322,7 +405,6 @@ func (r *request) requestReviews() (*JavDB, error) {
 }
 
 func (r *request) do() (io.ReadCloser, error) {
-	fmt.Println(r.url)
 	req, err := http.NewRequest(http.MethodGet, r.url, nil)
 	if err != nil {
 		return nil, err

@@ -112,7 +112,7 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 			"t": strings.Join(sliceDuplicateRemoving(p.Filter), ","),
 		})
 	default:
-		return nil, err
+		return nil, nil
 	}
 
 	a.Page = finalPage(a.Page, a.withRandom)
@@ -175,4 +175,35 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 	}
 
 	return results, nil
+}
+
+func (a *API) First(url string) (*JavDB, error) {
+	j := &JavDB{
+		req: &request{
+			client: a.client.HTTP,
+			ua:     a.client.UserAgent,
+			limit:  a.Limit,
+			filter: a.Filter,
+			url:    url,
+		},
+	}
+	err := j.loadDetails()
+	if err != nil {
+		return nil, err
+	}
+
+	if a.withReviews {
+		j.req.url = url + PathReviews
+		err = j.loadReviews()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if a.withDebug {
+		log.Printf("%+v\n", j)
+		log.Printf("%+v\n", a)
+	}
+
+	return j, nil
 }
