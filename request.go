@@ -268,6 +268,7 @@ func (r *request) requestDetails() (*JavDB, error) {
 					tagText := selection.Text()
 					tagText = strings.ReplaceAll(tagText, "・", "")
 					tagText = strings.ReplaceAll(tagText, "，", "")
+					tagText = strings.ReplaceAll(tagText, "、", "")
 					if utf8.RuneCountInString(tagText) == 0 {
 						return
 					}
