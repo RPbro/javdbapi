@@ -73,7 +73,7 @@ func main() {
 ```
 
 ```go
-	// details
+	// first
 	_, err = client.GetFirst().
 		WithReviews().
 		SetRaw("https://javdb008.com/v/5EOxMY").
@@ -128,7 +128,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-}
+```
+
+```go
+	// search
+	_, err = client.GetSearch().
+		SetQuery("PRED-483").
+		Get()
+	if err != nil {
+		panic(err)
+	}
 ```
 
 ```go

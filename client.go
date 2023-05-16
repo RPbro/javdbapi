@@ -19,6 +19,7 @@ const (
 	PathRankings = "/rankings/movies"
 	PathMakers   = "/makers"
 	PathActors   = "/actors"
+	PathSearch   = "/search"
 )
 
 type Client struct {

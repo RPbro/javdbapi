@@ -111,6 +111,12 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 		u = urlQueriesSet(u, map[string]string{
 			"t": strings.Join(sliceDuplicateRemoving(p.Filter), ","),
 		})
+	case *APISearch:
+		u.Path = PathSearch
+		u = urlQueriesSet(u, map[string]string{
+			"q": p.Query,
+			"f": "all",
+		})
 	default:
 		return nil, nil
 	}
