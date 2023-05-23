@@ -3,7 +3,6 @@ package javdbapi
 type APISearch struct {
 	base  *API
 	Query string
-	Limit int
 }
 
 func (c *Client) GetSearch() *APISearch {
