@@ -1,4 +1,4 @@
-module github.com/NERVEbing/javdbapi
+module github.com/RPbro/javdbapi
 
 go 1.20
 

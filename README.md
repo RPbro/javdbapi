@@ -3,7 +3,7 @@
 ## Installation
 
 ```shell
-go get -u github.com/NERVEbing/javdbapi
+go get -u github.com/RPbro/javdbapi
 ```
 
 ## Getting started
@@ -16,7 +16,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/NERVEbing/javdbapi"
+	"github.com/RPbro/javdbapi"
 )
 
 func main() {
