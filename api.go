@@ -1,6 +1,7 @@
 package javdbapi
 
 import (
+	"errors"
 	"log"
 	"net/url"
 	"strconv"
@@ -144,7 +145,7 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 			v.req.url = a.client.Domain + v.Path
 			err = v.loadDetails()
 			if err != nil {
-				if err != errorFiltered {
+				if !errors.Is(err, errorFiltered) {
 					return nil, err
 				}
 				v.deleted = true
@@ -156,7 +157,7 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 			v.req.url = a.client.Domain + v.Path + PathReviews
 			err = v.loadReviews()
 			if err != nil {
-				if err != errorFiltered {
+				if !errors.Is(err, errorFiltered) {
 					return nil, err
 				}
 				v.deleted = true
