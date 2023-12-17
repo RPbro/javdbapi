@@ -16,5 +16,7 @@ func TestNewClient(t *testing.T) {
 		panic(err)
 	}
 
-	fmt.Println(result)
+	for _, i := range result {
+		fmt.Println(i)
+	}
 }
