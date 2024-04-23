@@ -2,6 +2,7 @@ package javdbapi
 
 import (
 	"crypto/tls"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -10,7 +11,7 @@ import (
 const (
 	defaultDomain    = "https://javdb.com"
 	defaultTimeout   = time.Second * 30
-	defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
+	defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 	defaultPage    = 1
 	defaultPageMax = 60
@@ -69,12 +70,16 @@ func NewClient(options ...option) *Client {
 	}
 
 	if len(client.ProxyAddr) > 0 {
-		proxyURL, _ := url.Parse(client.ProxyAddr)
-		tr := &http.Transport{
-			Proxy:           http.ProxyURL(proxyURL),
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		proxyURL, err := url.Parse(client.ProxyAddr)
+		if err != nil {
+			log.Printf("%s\n", err)
+		} else {
+			tr := &http.Transport{
+				Proxy:           http.ProxyURL(proxyURL),
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client.HTTP.Transport = tr
 		}
-		client.HTTP.Transport = tr
 	}
 
 	return client
