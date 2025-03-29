@@ -52,6 +52,7 @@ func main() {
 		HasPics:        false,
 		HasMagnets:     false,
 		HasReviews:     false,
+		RegexpMagnets: 	"",
 	}
 
 	results, err := client.GetRaw().

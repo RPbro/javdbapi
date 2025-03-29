@@ -18,9 +18,14 @@ func strIsInt(s string) bool {
 	return err == nil
 }
 
-func strIsMagnet(s string) bool {
-	re := regexp.MustCompile(`^magnet:\?xt=urn:btih:[0-9a-fA-F]{32,40}.*$`)
+func strIsMatch(s string, reg string) bool {
+	re := regexp.MustCompile(reg)
 	return re.MatchString(s)
+}
+
+func strIsMagnet(s string) bool {
+	reg := `^magnet:\?xt=urn:btih:[0-9a-fA-F]{32,40}.*$`
+	return strIsMatch(s, reg)
 }
 
 type mSet map[any]struct{}

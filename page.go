@@ -11,8 +11,8 @@ func finalPage(page int, random bool) int {
 	case page > 0:
 		p = page
 	case random:
-		rand.Seed(time.Now().Unix())
-		n := rand.Intn(defaultPageMax)
+		r := rand.New(rand.NewSource(time.Now().Unix()))
+		n := r.Intn(defaultPageMax)
 		p = n
 	}
 

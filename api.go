@@ -36,6 +36,7 @@ type Filter struct {
 	HasPics        bool
 	HasMagnets     bool
 	HasReviews     bool
+	RegexpMagnets  string
 }
 
 func (a *API) WithDetails() *API {

@@ -5,18 +5,28 @@ import (
 	"testing"
 )
 
-func TestNewClient(t *testing.T) {
-	client := NewClient()
+const testDomain = "https://javdb456.com"
 
-	result, err := client.GetSearch().
-		SetQuery("PRED-483").
-		SetLimit(3).
+func TestNewClient(t *testing.T) {
+	client := NewClient(WithDomain(testDomain))
+
+	filter := Filter{
+		HasZH:         true,
+		HasMagnets:    true,
+		RegexpMagnets: "-UC.torrent|无码|破解",
+	}
+
+	result, err := client.GetMakers().
+		WithDetails().
+		WithRandom().
+		SetMaker("7R").
+		SetFilter(filter).
 		Get()
 	if err != nil {
 		panic(err)
 	}
 
 	for _, i := range result {
-		fmt.Println(i)
+		fmt.Println(i.Magnets)
 	}
 }

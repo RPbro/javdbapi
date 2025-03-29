@@ -322,6 +322,9 @@ func (r *request) requestDetails() (*JavDB, error) {
 			if !exists || !strIsMagnet(magnet) {
 				return
 			}
+			if len(r.filter.RegexpMagnets) > 0 && !strIsMatch(magnet, r.filter.RegexpMagnets) {
+				return
+			}
 			magnets = append(magnets, magnet)
 			if strings.Contains(strTrimSpace(selection.Find(".tags").Text()), "字幕") {
 				hasZH = true
