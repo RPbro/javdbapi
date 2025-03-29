@@ -70,7 +70,7 @@ func (j *JavDB) loadDetails() error {
 	if j.PubDate.IsZero() {
 		j.PubDate = r.PubDate
 	}
-	if j.HasZH == false {
+	if !j.HasZH {
 		j.HasZH = r.HasZH
 	}
 
