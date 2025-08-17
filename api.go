@@ -167,6 +167,25 @@ func (a *API) Get(t any) ([]*Item, error) {
 	return result, nil
 }
 
+func (a *API) First(link string) (*Item, error) {
+	hc, err := a.newHttpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	item, err := a.fetchDetail(hc, link, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	item, err = a.fetchReviews(hc, a.client.domain+item.Path+PathReviews, item)
+	if err != nil {
+		return nil, err
+	}
+
+	return item, nil
+}
+
 func (a *API) newHttpClient() (*http.Client, error) {
 	hc := &http.Client{
 		Timeout: a.client.timeout,

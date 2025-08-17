@@ -2,6 +2,7 @@ package javdbapi
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -168,6 +169,97 @@ func (a *API) fetchDetail(hc *http.Client, link string, item *Item) (*Item, erro
 	doc, err := a.toDocument(hc, link)
 	if err != nil {
 		return nil, err
+	}
+
+	if item == nil {
+		var (
+			title, code, cover, path string
+			score                    float64
+			scoreCount               int
+			pubDate                  time.Time
+			hasSubtitle              bool
+		)
+
+		{
+			// title
+			title = strTrimSpace(doc.Find(".current-title").First().Text())
+		}
+		{
+			// cover
+			coverText, exists := doc.Find(".video-cover").Attr("src")
+			if exists {
+				cover = strTrimSpace(coverText)
+			}
+		}
+		{
+			// path
+			u, err := url.Parse(link)
+			if err != nil {
+				return nil, err
+			}
+			path = u.Path
+		}
+		{
+			doc.Find(".panel-block > strong").Each(func(i int, selection *goquery.Selection) {
+				switch selection.Text() {
+				case "番號:":
+					// code
+					code = strings.ToUpper(strTrimSpace(selection.Next().Text()))
+					if len(strings.Split(code, "-")) != 2 || !strIsInt(strings.Split(code, "-")[1]) {
+						return
+					}
+				case "日期:":
+					// pubDate
+					pubDateText := strTrimSpace(selection.Next().Text())
+					if len(pubDateText) > 0 {
+						pubDateTime, err := time.Parse("2006-01-02", pubDateText)
+						if err != nil {
+							return
+						}
+						if pubDateTime.Unix() <= 0 {
+							return
+						}
+						pubDate = pubDateTime
+					}
+				case "評分:":
+					scoreArr := strings.Split(strTrimSpace(selection.Next().Text()), ",")
+					if len(scoreArr) != 2 {
+						return
+					}
+					scoreText := scoreArr[0]
+					scoreCountText := scoreArr[1]
+					scoreTextArr := strings.Split(scoreText, "分")
+					if len(scoreTextArr) != 2 {
+						return
+					}
+					// score
+					score, err = strconv.ParseFloat(scoreTextArr[0], 64)
+					if err != nil {
+						return
+					}
+					// scoreCount
+					scoreCountTextArr := strings.Split(scoreCountText, "人評價")
+					if len(scoreCountTextArr) == 2 && len(strings.Split(scoreCountTextArr[0], "由")) == 2 {
+						scoreCount, err = strconv.Atoi(strings.Split(scoreCountTextArr[0], "由")[1])
+						if err != nil {
+							return
+						}
+					}
+				}
+			})
+		}
+
+		item = &Item{
+			ID:          path,
+			Title:       title,
+			Code:        code,
+			Cover:       cover,
+			Path:        path,
+			Score:       score,
+			ScoreCount:  scoreCount,
+			PubDate:     pubDate,
+			HasSubtitle: hasSubtitle,
+		}
 	}
 
 	var (
