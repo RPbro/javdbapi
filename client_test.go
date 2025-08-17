@@ -1,32 +1,15 @@
 package javdbapi
 
 import (
-	"fmt"
-	"testing"
+	"time"
 )
 
-const testDomain = "https://javdb456.com"
-
-func TestNewClient(t *testing.T) {
-	client := NewClient(WithDomain(testDomain))
-
-	filter := Filter{
-		HasZH:         true,
-		HasMagnets:    true,
-		RegexpMagnets: "-UC.torrent|无码|破解",
-	}
-
-	result, err := client.GetMakers().
-		WithDetails().
-		WithRandom().
-		SetMaker("7R").
-		SetFilter(filter).
-		Get()
-	if err != nil {
-		panic(err)
-	}
-
-	for _, i := range result {
-		fmt.Println(i.Magnets)
-	}
+func newTestClient() *Client {
+	client := NewClient(
+		WithDomain("https://javdb.com"),
+		WithUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"),
+		WithProxy("http://10.10.10.20:1080"),
+		WithTimeout(time.Second*30),
+	)
+	return client
 }

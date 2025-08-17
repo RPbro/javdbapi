@@ -13,21 +13,6 @@ func (c *Client) GetSearch() *APISearch {
 	}
 }
 
-func (a *APISearch) WithDetails() *APISearch {
-	a.base.WithDetails()
-	return a
-}
-
-func (a *APISearch) WithReviews() *APISearch {
-	a.base.WithReviews()
-	return a
-}
-
-func (a *APISearch) WithDebug() *APISearch {
-	a.base.WithDebug()
-	return a
-}
-
 func (a *APISearch) SetPage(page int) *APISearch {
 	a.base.SetPage(page)
 	return a
@@ -48,6 +33,6 @@ func (a *APISearch) SetQuery(query string) *APISearch {
 	return a
 }
 
-func (a *APISearch) Get() ([]*JavDB, error) {
+func (a *APISearch) Get() ([]*Item, error) {
 	return a.base.Get(a)
 }

@@ -1,7 +1,6 @@
 package javdbapi
 
 import (
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,16 +41,6 @@ func sliceDuplicateRemoving[T any](s []T) []T {
 	return r
 }
 
-func sliceRemoveIndex[T any](s []T, i int) []T {
-	r := make([]T, 0)
-	r = append(r, s[:i]...)
-	return append(r, s[i+1:]...)
-}
-
-func sliceEqual[T comparable](s1 []T, s2 []T) bool {
-	return reflect.DeepEqual(s1, s2)
-}
-
 func sliceElementInSlice[T comparable](e T, s []T) bool {
 	for _, i := range s {
 		if i == e {
@@ -74,20 +63,4 @@ func sliceContainsAny[T comparable](s1 []T, s2 []T) bool {
 	}
 
 	return pass
-}
-
-func sliceIsSubset[T comparable](subset []T, superset []T) bool {
-	if reflect.DeepEqual(subset, superset) {
-		return true
-	}
-	check := make(map[T]bool)
-	for _, v := range subset {
-		check[v] = true
-	}
-	for _, v := range superset {
-		if check[v] {
-			delete(check, v)
-		}
-	}
-	return len(check) == 0
 }

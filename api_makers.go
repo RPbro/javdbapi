@@ -1,14 +1,5 @@
 package javdbapi
 
-const (
-	MakersFilterAll         = ""
-	MakersFilterPlayable    = "playable"
-	MakersFilterSingle      = "single"
-	MakersFilterCanDownload = "download"
-	MakersFilterHasZH       = "cnsub"
-	MakersFilterHasPreview  = "preview"
-)
-
 type APIMakers struct {
 	base   *API
 	Maker  string
@@ -24,26 +15,6 @@ func (c *Client) GetMakers() *APIMakers {
 		Maker:  "7R", // S1 NO.1 STYLE
 		Filter: MakersFilterAll,
 	}
-}
-
-func (a *APIMakers) WithDetails() *APIMakers {
-	a.base.WithDetails()
-	return a
-}
-
-func (a *APIMakers) WithReviews() *APIMakers {
-	a.base.WithReviews()
-	return a
-}
-
-func (a *APIMakers) WithRandom() *APIMakers {
-	a.base.WithRandom()
-	return a
-}
-
-func (a *APIMakers) WithDebug() *APIMakers {
-	a.base.WithDebug()
-	return a
 }
 
 func (a *APIMakers) SetPage(page int) *APIMakers {
@@ -81,21 +52,21 @@ func (a *APIMakers) SetFilterSingle() *APIMakers {
 	return a
 }
 
-func (a *APIMakers) SetFilterCanDownload() *APIMakers {
-	a.Filter = MakersFilterCanDownload
+func (a *APIMakers) SetFilterDownload() *APIMakers {
+	a.Filter = MakersFilterDownload
 	return a
 }
 
-func (a *APIMakers) SetFilterHasZH() *APIMakers {
-	a.Filter = MakersFilterHasZH
+func (a *APIMakers) SetFilterCNSub() *APIMakers {
+	a.Filter = MakersFilterCNSub
 	return a
 }
 
-func (a *APIMakers) SetFilterHasPreview() *APIMakers {
-	a.Filter = MakersFilterHasPreview
+func (a *APIMakers) SetFilterPreview() *APIMakers {
+	a.Filter = MakersFilterPreview
 	return a
 }
 
-func (a *APIMakers) Get() ([]*JavDB, error) {
+func (a *APIMakers) Get() ([]*Item, error) {
 	return a.base.Get(a)
 }

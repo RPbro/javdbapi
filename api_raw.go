@@ -13,26 +13,6 @@ func (c *Client) GetRaw() *APIRaw {
 	}
 }
 
-func (a *APIRaw) WithDetails() *APIRaw {
-	a.base.WithDetails()
-	return a
-}
-
-func (a *APIRaw) WithReviews() *APIRaw {
-	a.base.WithReviews()
-	return a
-}
-
-func (a *APIRaw) WithRandom() *APIRaw {
-	a.base.WithRandom()
-	return a
-}
-
-func (a *APIRaw) WithDebug() *APIRaw {
-	a.base.WithDebug()
-	return a
-}
-
 func (a *APIRaw) SetPage(page int) *APIRaw {
 	a.base.SetPage(page)
 	return a
@@ -53,6 +33,6 @@ func (a *APIRaw) SetRaw(raw string) *APIRaw {
 	return a
 }
 
-func (a *APIRaw) Get() ([]*JavDB, error) {
+func (a *APIRaw) Get() ([]*Item, error) {
 	return a.base.Get(a)
 }

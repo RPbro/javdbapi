@@ -1,86 +1,64 @@
 package javdbapi
 
 import (
-	"errors"
-	"log"
+	"crypto/tls"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type API struct {
-	client      *Client
-	withDetails bool
-	withReviews bool
-	withRandom  bool
-	withDebug   bool
-	Page        int
-	Limit       int
-	Filter      Filter
-}
-
-type Filter struct {
-	ScoreGT        float64
-	ScoreLT        float64
-	ScoreCountGT   int
-	ScoreCountLT   int
-	PubDateBefore  time.Time
-	PubDateAfter   time.Time
-	HasZH          bool
-	HasPreview     bool
-	ActressesIn    []string
-	ActressesNotIn []string
-	TagsIn         []string
-	TagsNotIn      []string
-	HasPics        bool
-	HasMagnets     bool
-	HasReviews     bool
-	RegexpMagnets  string
-}
-
-func (a *API) WithDetails() *API {
-	a.withDetails = true
-	return a
-}
-
-func (a *API) WithReviews() *API {
-	a.withReviews = true
-	return a
-}
-
-func (a *API) WithRandom() *API {
-	a.withRandom = true
-	return a
-}
-
-func (a *API) WithDebug() *API {
-	a.withDebug = true
-	return a
+	client *Client
+	page   int
+	limit  int
+	filter *Filter
 }
 
 func (a *API) SetPage(page int) *API {
-	if page > defaultPageMax {
+	if page > defaultPageMax || page < defaultPage {
 		page = defaultPage
 	}
-	a.Page = page
+	a.page = page
 	return a
 }
 
 func (a *API) SetLimit(limit int) *API {
 	if limit > 0 {
-		a.Limit = limit
+		a.limit = limit
 	}
 	return a
 }
 
 func (a *API) SetFilter(filter Filter) *API {
-	a.Filter = filter
+	a.filter = &Filter{
+		ScoreGT:       filter.ScoreGT,
+		ScoreLT:       filter.ScoreLT,
+		ScoreCountGT:  filter.ScoreCountGT,
+		ScoreCountLT:  filter.ScoreCountLT,
+		PubDateBefore: filter.PubDateBefore,
+		PubDateAfter:  filter.PubDateAfter,
+		HasSubtitle:   filter.HasSubtitle,
+
+		HasPreview:  filter.HasPreview,
+		ActorsIn:    filter.ActorsIn,
+		ActorsNotIn: filter.ActorsNotIn,
+		TagsIn:      filter.TagsIn,
+		TagsNotIn:   filter.TagsNotIn,
+		HasPics:     filter.HasPics,
+		HasMagnets:  filter.HasMagnets,
+
+		HasReviews: filter.HasReviews,
+
+		ResultRegexpMagnets: filter.ResultRegexpMagnets,
+	}
 	return a
 }
 
-func (a *API) Get(t interface{}) ([]*JavDB, error) {
-	u, err := url.Parse(a.client.Domain)
+func (a *API) Get(t any) ([]*Item, error) {
+	var result []*Item
+
+	u, err := url.Parse(a.client.domain)
 	if err != nil {
 		return nil, err
 	}
@@ -91,30 +69,30 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 		if err != nil {
 			return nil, err
 		}
-	case *APIHomes:
-		u.Path = p.Category
+	case *APIHome:
+		u = u.JoinPath(PathHome, p.Type)
 		u = urlQueriesSet(u, map[string]string{
-			"vst": p.SortBy,
-			"vft": p.FilterBy,
+			"vst": p.Sort,
+			"vft": p.Filter,
 		})
 	case *APIRankings:
-		u.Path = PathRankings
+		u = u.JoinPath(PathRankings)
 		u = urlQueriesSet(u, map[string]string{
-			"t": p.Category,
-			"p": p.Time,
+			"t": p.Type,
+			"p": p.Period,
 		})
 	case *APIMakers:
-		u.Path = PathMakers + "/" + p.Maker
+		u = u.JoinPath(PathMakers, p.Maker)
 		u = urlQueriesSet(u, map[string]string{
 			"f": p.Filter,
 		})
 	case *APIActors:
-		u.Path = PathActors + "/" + p.Actor
+		u = u.JoinPath(PathActors, p.Actor)
 		u = urlQueriesSet(u, map[string]string{
 			"t": strings.Join(sliceDuplicateRemoving(p.Filter), ","),
 		})
 	case *APISearch:
-		u.Path = PathSearch
+		u = u.JoinPath(PathSearch)
 		u = urlQueriesSet(u, map[string]string{
 			"q": p.Query,
 			"f": "all",
@@ -123,95 +101,86 @@ func (a *API) Get(t interface{}) ([]*JavDB, error) {
 		return nil, nil
 	}
 
-	a.Page = finalPage(a.Page, a.withRandom)
-	u = urlQuerySet(u, "page", strconv.Itoa(a.Page))
-
-	j := &JavDB{
-		req: &request{
-			client: a.client.HTTP,
-			ua:     a.client.UserAgent,
-			limit:  a.Limit,
-			filter: a.Filter,
-			url:    u.String(),
-		},
+	if a.page != 0 {
+		u = urlQuerySet(u, "page", strconv.Itoa(a.page))
 	}
+	u = urlQuerySet(u, "locale", "zh")
 
-	items, err := j.loadList()
+	hc, err := a.newHttpClient()
 	if err != nil {
 		return nil, err
 	}
 
-	if a.withDetails {
-		for _, v := range items {
-			v.req.url = a.client.Domain + v.Path
-			err = v.loadDetails()
-			if err != nil {
-				if !errors.Is(err, errorFiltered) {
-					return nil, err
-				}
-				v.deleted = true
-			}
+	m := map[string]*Item{}
+
+	resp, err := a.fetchList(hc, u.String())
+	for _, item := range resp {
+		if _, ok := m[item.ID]; !ok {
+			m[item.ID] = item
 		}
-	}
-	if a.withReviews {
-		for _, v := range items {
-			v.req.url = a.client.Domain + v.Path + PathReviews
-			err = v.loadReviews()
-			if err != nil {
-				if !errors.Is(err, errorFiltered) {
-					return nil, err
-				}
-				v.deleted = true
-			}
-		}
-	}
 
-	var results []*JavDB
-
-	for _, item := range items {
-		if item.deleted {
-			continue
-		}
-		results = append(results, item)
-	}
-
-	if a.withDebug {
-		for _, i := range results {
-			log.Printf("%+v\n", i)
-		}
-		log.Printf("%+v\n", a)
-	}
-
-	return results, nil
-}
-
-func (a *API) First(url string) (*JavDB, error) {
-	j := &JavDB{
-		req: &request{
-			client: a.client.HTTP,
-			ua:     a.client.UserAgent,
-			limit:  a.Limit,
-			filter: a.Filter,
-			url:    url,
-		},
-	}
-	err := j.loadDetails()
-	if err != nil {
-		return nil, err
-	}
-
-	if a.withReviews {
-		j.req.url = url + PathReviews
-		err = j.loadReviews()
+		item, err = a.fetchDetail(hc, a.client.domain+item.Path, item)
 		if err != nil {
 			return nil, err
 		}
+		if item.remove {
+			if _, ok := m[item.ID]; ok {
+				delete(m, item.ID)
+			}
+			continue
+		}
+
+		item, err = a.fetchReviews(hc, a.client.domain+item.Path+PathReviews, item)
+		if err != nil {
+			return nil, err
+		}
+		if item.remove {
+			if _, ok := m[item.ID]; ok {
+				delete(m, item.ID)
+			}
+			continue
+		}
 	}
 
-	if a.withDebug {
-		log.Printf("%+v\n", j)
-		log.Printf("%+v\n", a)
+	if a.filter != nil {
+		if len(a.filter.ResultRegexpMagnets) > 0 {
+			for _, item := range m {
+				a.filter.pass = true
+				a.filter.checkResultRegexpMagnets(item.Magnets)
+				if a.filter.pass {
+					continue
+				}
+				if _, ok := m[item.ID]; ok {
+					delete(m, item.ID)
+				}
+			}
+		}
 	}
 
-	return j, nil
+	for _, item := range m {
+		if a.limit > 0 && len(result) >= a.limit {
+			continue
+		}
+		result = append(result, item)
+	}
+
+	return result, nil
+}
+
+func (a *API) newHttpClient() (*http.Client, error) {
+	hc := &http.Client{
+		Timeout: a.client.timeout,
+	}
+	if len(a.client.proxy) > 0 {
+		proxyURL, err := url.Parse(a.client.proxy)
+		if err != nil {
+			return nil, err
+		}
+		tr := &http.Transport{
+			Proxy:           http.ProxyURL(proxyURL),
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		hc.Transport = tr
+	}
+	return hc, nil
 }

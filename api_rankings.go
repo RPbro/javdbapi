@@ -1,18 +1,9 @@
 package javdbapi
 
-const (
-	RankingsCategoryCensored   = "censored"
-	RankingsCategoryUncensored = "uncensored"
-	RankingsCategoryWestern    = "western"
-	RankingsTimeDaily          = "daily"
-	RankingsTimeWeekly         = "weekly"
-	RankingsTimeMonthly        = "monthly"
-)
-
 type APIRankings struct {
-	base     *API
-	Category string
-	Time     string
+	base   *API
+	Period string
+	Type   string
 }
 
 func (c *Client) GetRankings() *APIRankings {
@@ -20,29 +11,9 @@ func (c *Client) GetRankings() *APIRankings {
 		base: &API{
 			client: c,
 		},
-		Category: RankingsCategoryCensored,
-		Time:     RankingsTimeDaily,
+		Period: RankingsPeriodDaily,
+		Type:   RankingsTypeCensored,
 	}
-}
-
-func (a *APIRankings) WithDetails() *APIRankings {
-	a.base.WithDetails()
-	return a
-}
-
-func (a *APIRankings) WithReviews() *APIRankings {
-	a.base.WithReviews()
-	return a
-}
-
-func (a *APIRankings) WithRandom() *APIRankings {
-	a.base.WithRandom()
-	return a
-}
-
-func (a *APIRankings) WithDebug() *APIRankings {
-	a.base.WithDebug()
-	return a
 }
 
 func (a *APIRankings) SetPage(page int) *APIRankings {
@@ -60,36 +31,36 @@ func (a *APIRankings) SetFilter(filter Filter) *APIRankings {
 	return a
 }
 
-func (a *APIRankings) SetCategoryCensored() *APIRankings {
-	a.Category = RankingsCategoryCensored
+func (a *APIRankings) SetPeriodDaily() *APIRankings {
+	a.Period = RankingsPeriodDaily
 	return a
 }
 
-func (a *APIRankings) SetCategoryUncensored() *APIRankings {
-	a.Category = RankingsCategoryUncensored
+func (a *APIRankings) SetPeriodWeekly() *APIRankings {
+	a.Period = RankingsPeriodWeekly
 	return a
 }
 
-func (a *APIRankings) SetCategoryWestern() *APIRankings {
-	a.Category = RankingsCategoryWestern
+func (a *APIRankings) SetPeriodMonthly() *APIRankings {
+	a.Period = RankingsPeriodMonthly
 	return a
 }
 
-func (a *APIRankings) SetTimeDaily() *APIRankings {
-	a.Time = RankingsTimeDaily
+func (a *APIRankings) SetTypeCensored() *APIRankings {
+	a.Type = RankingsTypeCensored
 	return a
 }
 
-func (a *APIRankings) SetTimeWeekly() *APIRankings {
-	a.Time = RankingsTimeWeekly
+func (a *APIRankings) SetTypeUncensored() *APIRankings {
+	a.Type = RankingsTypeUncensored
 	return a
 }
 
-func (a *APIRankings) SetTimeMonthly() *APIRankings {
-	a.Time = RankingsTimeMonthly
+func (a *APIRankings) SetTypeWestern() *APIRankings {
+	a.Type = RankingsTypeWestern
 	return a
 }
 
-func (a *APIRankings) Get() ([]*JavDB, error) {
+func (a *APIRankings) Get() ([]*Item, error) {
 	return a.base.Get(a)
 }

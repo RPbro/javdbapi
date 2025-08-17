@@ -1,13 +1,5 @@
 package javdbapi
 
-const (
-	ActorsFilterAll         = ""
-	ActorsFilterPlayable    = "p"
-	ActorsFilterSingle      = "s"
-	ActorsFilterCanDownload = "d"
-	ActorsFilterHasZH       = "c"
-)
-
 type APIActors struct {
 	base   *API
 	Actor  string
@@ -20,29 +12,9 @@ func (c *Client) GetActors() *APIActors {
 			client: c,
 		},
 		// see https://javdb.com/actors
-		Actor:  "M4Q7", // 明里つむぎ
+		Actor:  "O2Q30", // 結城結弦
 		Filter: []string{},
 	}
-}
-
-func (a *APIActors) WithDetails() *APIActors {
-	a.base.WithDetails()
-	return a
-}
-
-func (a *APIActors) WithReviews() *APIActors {
-	a.base.WithReviews()
-	return a
-}
-
-func (a *APIActors) WithRandom() *APIActors {
-	a.base.WithRandom()
-	return a
-}
-
-func (a *APIActors) WithDebug() *APIActors {
-	a.base.WithDebug()
-	return a
 }
 
 func (a *APIActors) SetPage(page int) *APIActors {
@@ -80,16 +52,16 @@ func (a *APIActors) SetFilterSingle() *APIActors {
 	return a
 }
 
-func (a *APIActors) SetFilterCanDownload() *APIActors {
-	a.Filter = append(a.Filter, ActorsFilterCanDownload)
+func (a *APIActors) SetFilterDownload() *APIActors {
+	a.Filter = append(a.Filter, ActorsFilterDownload)
 	return a
 }
 
-func (a *APIActors) SetFilterHasZH() *APIActors {
-	a.Filter = append(a.Filter, ActorsFilterHasZH)
+func (a *APIActors) SetFilterCNSub() *APIActors {
+	a.Filter = append(a.Filter, ActorsFilterCNSub)
 	return a
 }
 
-func (a *APIActors) Get() ([]*JavDB, error) {
+func (a *APIActors) Get() ([]*Item, error) {
 	return a.base.Get(a)
 }
