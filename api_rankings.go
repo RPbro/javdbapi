@@ -16,6 +16,16 @@ func (c *Client) GetRankings() *APIRankings {
 	}
 }
 
+func (a *APIRankings) SetDebug() *APIRankings {
+	a.base.SetDebug()
+	return a
+}
+
+func (a *APIRankings) SetRandom() *APIRankings {
+	a.base.SetRandom()
+	return a
+}
+
 func (a *APIRankings) SetPage(page int) *APIRankings {
 	a.base.SetPage(page)
 	return a

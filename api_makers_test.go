@@ -1,21 +1,17 @@
 package javdbapi
 
 import (
-	"fmt"
 	"testing"
 )
 
 func TestAPIMakers(t *testing.T) {
 	client := newTestClient()
-	result, err := client.GetMakers().
-		SetMaker("7R").
+	_, err := client.GetMakers().
+		SetDebug().
+		SetMaker("7R"). // S1 NO.1 STYLE
 		SetFilterCNSub().
 		Get()
 	if err != nil {
 		panic(err)
-	}
-	for _, r := range result {
-		fmt.Println(client.domain + r.Path)
-		fmt.Printf("%+v\n", r)
 	}
 }

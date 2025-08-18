@@ -13,6 +13,16 @@ func (c *Client) GetRaw() *APIRaw {
 	}
 }
 
+func (a *APIRaw) SetDebug() *APIRaw {
+	a.base.SetDebug()
+	return a
+}
+
+func (a *APIRaw) SetRandom() *APIRaw {
+	a.base.SetRandom()
+	return a
+}
+
 func (a *APIRaw) SetPage(page int) *APIRaw {
 	a.base.SetPage(page)
 	return a

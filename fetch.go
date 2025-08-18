@@ -37,7 +37,7 @@ type Item struct {
 func (a *API) fetchList(hc *http.Client, link string) ([]*Item, error) {
 	var result []*Item
 
-	doc, err := a.toDocument(hc, link)
+	doc, err := a.request(hc, link)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (a *API) fetchList(hc *http.Client, link string) ([]*Item, error) {
 }
 
 func (a *API) fetchDetail(hc *http.Client, link string, item *Item) (*Item, error) {
-	doc, err := a.toDocument(hc, link)
+	doc, err := a.request(hc, link)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +344,7 @@ func (a *API) fetchDetail(hc *http.Client, link string, item *Item) (*Item, erro
 }
 
 func (a *API) fetchReviews(hc *http.Client, link string, item *Item) (*Item, error) {
-	doc, err := a.toDocument(hc, link)
+	doc, err := a.request(hc, link)
 	if err != nil {
 		return nil, err
 	}
@@ -371,17 +371,4 @@ func (a *API) fetchReviews(hc *http.Client, link string, item *Item) (*Item, err
 	item.Reviews = reviews
 
 	return item, nil
-}
-
-func (a *API) toDocument(hc *http.Client, link string) (*goquery.Document, error) {
-	resp, err := hc.Get(link)
-	if err != nil {
-		return nil, err
-	}
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return doc, nil
 }

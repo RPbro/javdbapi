@@ -17,6 +17,16 @@ func (c *Client) GetMakers() *APIMakers {
 	}
 }
 
+func (a *APIMakers) SetDebug() *APIMakers {
+	a.base.SetDebug()
+	return a
+}
+
+func (a *APIMakers) SetRandom() *APIMakers {
+	a.base.SetRandom()
+	return a
+}
+
 func (a *APIMakers) SetPage(page int) *APIMakers {
 	a.base.SetPage(page)
 	return a

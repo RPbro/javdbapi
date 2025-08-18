@@ -13,6 +13,16 @@ func (c *Client) GetSearch() *APISearch {
 	}
 }
 
+func (a *APISearch) SetDebug() *APISearch {
+	a.base.SetDebug()
+	return a
+}
+
+func (a *APISearch) SetRandom() *APISearch {
+	a.base.SetRandom()
+	return a
+}
+
 func (a *APISearch) SetPage(page int) *APISearch {
 	a.base.SetPage(page)
 	return a

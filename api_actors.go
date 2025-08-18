@@ -17,6 +17,16 @@ func (c *Client) GetActors() *APIActors {
 	}
 }
 
+func (a *APIActors) SetDebug() *APIActors {
+	a.base.SetDebug()
+	return a
+}
+
+func (a *APIActors) SetRandom() *APIActors {
+	a.base.SetRandom()
+	return a
+}
+
 func (a *APIActors) SetPage(page int) *APIActors {
 	a.base.SetPage(page)
 	return a

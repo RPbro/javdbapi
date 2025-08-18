@@ -18,6 +18,16 @@ func (c *Client) GetHome() *APIHome {
 	}
 }
 
+func (a *APIHome) SetDebug() *APIHome {
+	a.base.SetDebug()
+	return a
+}
+
+func (a *APIHome) SetRandom() *APIHome {
+	a.base.SetRandom()
+	return a
+}
+
 func (a *APIHome) SetPage(page int) *APIHome {
 	a.base.SetPage(page)
 	return a

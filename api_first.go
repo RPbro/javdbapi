@@ -13,6 +13,11 @@ func (c *Client) GetFirst() *APIFirst {
 	}
 }
 
+func (a *APIFirst) SetDebug() *APIFirst {
+	a.base.SetDebug()
+	return a
+}
+
 func (a *APIFirst) SetRaw(raw string) *APIFirst {
 	a.Raw = raw
 	return a
