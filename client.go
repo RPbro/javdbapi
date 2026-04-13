@@ -1,50 +1,69 @@
 package javdbapi
 
 import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
+
+	"github.com/RPbro/javdbapi/internal/web"
+)
+
+const (
+	defaultBaseURL   = "https://javdb.com"
+	defaultTimeout   = 30 * time.Second
+	defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
 )
 
 type Client struct {
-	domain  string
-	ua      string
-	timeout time.Duration
-	proxy   string
+	baseURL    *url.URL
+	httpClient *http.Client
+	proxyURL   string
+	userAgent  string
+	debug      bool
+	runner     *web.Runner
 }
 
-type option func(c *Client)
+func NewClient(cfg Config) (*Client, error) {
+	baseURLStr := strings.TrimSpace(cfg.BaseURL)
+	if baseURLStr == "" {
+		baseURLStr = defaultBaseURL
+	}
 
-func WithDomain(domain string) func(c *Client) {
-	return func(c *Client) {
-		c.domain = domain
+	baseURL, err := url.Parse(baseURLStr)
+	if err != nil || baseURL.Scheme == "" || baseURL.Host == "" {
+		return nil, fmt.Errorf("%w: invalid base url %q", ErrInvalidConfig, baseURLStr)
 	}
-}
+	if baseURL.Scheme != "http" && baseURL.Scheme != "https" {
+		return nil, fmt.Errorf("%w: invalid base url %q", ErrInvalidConfig, baseURLStr)
+	}
 
-func WithUserAgent(ua string) func(c *Client) {
-	return func(c *Client) {
-		c.ua = ua
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
 	}
-}
 
-func WithTimeout(timeout time.Duration) func(c *Client) {
-	return func(c *Client) {
-		c.timeout = timeout
+	userAgent := strings.TrimSpace(cfg.UserAgent)
+	if userAgent == "" {
+		userAgent = defaultUserAgent
 	}
-}
 
-func WithProxy(addr string) func(c *Client) {
-	return func(c *Client) {
-		c.proxy = addr
-	}
-}
+	httpClient := &http.Client{Timeout: timeout}
 
-func NewClient(options ...option) *Client {
-	client := &Client{
-		domain:  defaultDomain,
-		ua:      defaultUserAgent,
-		timeout: defaultTimeout,
+	proxyURL := strings.TrimSpace(cfg.ProxyURL)
+
+	runner, err := web.NewRunner(timeout, cfg.ProxyURL, userAgent, cfg.Debug)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
-	for _, fn := range options {
-		fn(client)
-	}
-	return client
+
+	return &Client{
+		baseURL:    baseURL,
+		httpClient: httpClient,
+		proxyURL:   proxyURL,
+		userAgent:  userAgent,
+		debug:      cfg.Debug,
+		runner:     runner,
+	}, nil
 }

@@ -1,18 +1,18 @@
 # javdbapi
 
-`javdbapi` is a Go library for querying `javdb.com` with an explicit `Client` plus typed query objects.
+`javdbapi` 是一个用于查询 `javdb.com` 的 Go library，公开接口由显式 `Client` 和强类型查询对象组成。
 
-## Requirements
+## 环境要求
 
 - Go `1.26.2`
 
-## Install
+## 安装
 
 ```bash
 go get github.com/RPbro/javdbapi
 ```
 
-## Initialize Client
+## 初始化 Client
 
 ```go
 package main
@@ -40,7 +40,7 @@ func main() {
 }
 ```
 
-`BaseURL`, `Timeout`, and `UserAgent` have defaults when empty.
+`BaseURL`、`Timeout`、`UserAgent` 为空时会使用默认值。
 
 ## Library API
 
@@ -123,63 +123,63 @@ func main() {
 }
 ```
 
-`VideoQuery` supports either `Path` (relative path) or `URL` (full video URL).
+`VideoQuery` 支持 `Path`（相对路径）或 `URL`（完整链接）两种方式。
 
-List endpoints (`Home`, `Search`, `Maker`, `Actor`, `Ranking`) return summary-level `Video` items from list pages. Use `Video` when you need full detail fields such as `PreviewURL`, `Actors`, `Tags`, `Screenshots`, `Magnets`, and `Reviews`.
+列表接口（`Home`、`Search`、`Maker`、`Actor`、`Ranking`）返回的是列表页级别的 `Video` 摘要数据。如果你需要 `PreviewURL`、`Actors`、`Tags`、`Screenshots`、`Magnets`、`Reviews` 这类完整详情字段，请再调用 `Video`。
 
-## Test Strategy
+## 测试策略
 
-### Default tests
+### 默认测试
 
 ```bash
 go test ./...
 ```
 
-Default tests are offline and deterministic, using local fixtures and `httptest`. They do not require external network access.
+默认测试是离线且可重复的，依赖本地 fixture 和 `httptest`，不需要外网。
 
-### Manual real verification
+### 手动真实验证
 
-Manual verification runs real requests against live endpoints and is intentionally separated from default tests.
+手动验证会对线上 endpoint 发起真实请求，并且有意与默认测试隔离。
 
-Run all endpoints:
+执行全部 endpoint：
 
 ```bash
 go run ./cmd/manualtest
 ```
 
-Run selected endpoints:
+只执行部分 endpoint：
 
 ```bash
 go run ./cmd/manualtest -only search,video
 ```
 
-Or with environment variable selector:
+也可以通过环境变量选择：
 
 ```bash
 JAVDB_MANUAL_ONLY=search,video go run ./cmd/manualtest
 ```
 
-## Manual Verification Environment Variables
+## 手动验证环境变量
 
-Client config:
+Client 配置：
 
-- `JAVDB_BASE_URL`: optional, default `https://javdb.com`
-- `JAVDB_PROXY_URL`: optional proxy URL
-- `JAVDB_TIMEOUT`: optional duration string (for example `30s`), default `30s`
-- `JAVDB_USER_AGENT`: optional custom user agent
+- `JAVDB_BASE_URL`：可选，默认 `https://javdb.com`
+- `JAVDB_PROXY_URL`：可选，代理地址
+- `JAVDB_TIMEOUT`：可选，`time.Duration` 格式（例如 `30s`），默认 `30s`
+- `JAVDB_USER_AGENT`：可选，自定义 User-Agent
 
-Manual selector:
+手动验证选择器：
 
-- `JAVDB_MANUAL_ONLY`: optional, comma-separated endpoints from `home,search,maker,actor,ranking,video`
+- `JAVDB_MANUAL_ONLY`：可选，逗号分隔，可选值为 `home,search,maker,actor,ranking,video`
 
-Optional sample inputs for real endpoint checks:
+真实验证样例输入（可选）：
 
-- `JAVDB_SAMPLE_KEYWORD` (default: `VR`)
-- `JAVDB_SAMPLE_MAKER_ID` (default: `7R`)
-- `JAVDB_SAMPLE_ACTOR_ID` (default: `neRNX`)
-- `JAVDB_SAMPLE_VIDEO_PATH` (default: `/v/ZNdEbV`)
+- `JAVDB_SAMPLE_KEYWORD`（默认：`VR`）
+- `JAVDB_SAMPLE_MAKER_ID`（默认：`7R`）
+- `JAVDB_SAMPLE_ACTOR_ID`（默认：`neRNX`）
+- `JAVDB_SAMPLE_VIDEO_PATH`（默认：`/v/ZNdEbV`）
 
-Example:
+示例：
 
 ```bash
 JAVDB_BASE_URL=https://javdb.com \
