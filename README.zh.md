@@ -127,6 +127,59 @@ func main() {
 
 列表接口（`Home`、`Search`、`Maker`、`Actor`、`Ranking`）返回的是列表页级别的 `Video` 摘要数据。如果你需要 `PreviewURL`、`Actors`、`Tags`、`Screenshots`、`Magnets`、`Reviews` 这类完整详情字段，请再调用 `Video`。
 
+## CLI
+
+安装：
+
+```bash
+go install github.com/RPbro/javdbapi/cmd/javdbapi@latest
+```
+
+本地运行：
+
+```bash
+go run ./cmd/javdbapi --help
+```
+
+示例：
+
+```bash
+go run ./cmd/javdbapi search --keyword VR --page 1 --max-pages 2
+go run ./cmd/javdbapi maker --id 7R --filter playable --output both
+go run ./cmd/javdbapi actor --id neRNX --filter c,d --stale-after 48h
+go run ./cmd/javdbapi ranking --period weekly --type censored
+go run ./cmd/javdbapi video --path /v/ZNdEbV --output console
+go run ./cmd/javdbapi video --url https://javdb.com/v/ZNdEbV --output file
+```
+
+输出文件默认写入 `./output` 目录，使用 `metadata + video` 结构：
+
+```json
+{
+  "metadata": {
+    "last_updated": "2026-04-18T10:20:30Z",
+    "path": "/v/ZNdEbV",
+    "path_key": "ZNdEbV",
+    "sources": [
+      {
+        "command": "video",
+        "query": {
+          "path": "/v/ZNdEbV"
+        }
+      }
+    ]
+  },
+  "video": {
+    "id": "/v/ZNdEbV"
+  }
+}
+```
+
+说明：
+
+- `--stale-after` 使用 Go `time.Duration` 格式，例如 `30m`、`90m`、`1h30m`。
+- `console` 模式命中新鲜缓存时不会向 stdout 回显 JSON，跳过原因写入 stderr。
+
 ## 测试策略
 
 ### 默认测试
@@ -136,59 +189,3 @@ go test ./...
 ```
 
 默认测试是离线且可重复的，依赖本地 fixture 和 `httptest`，不需要外网。
-
-### 手动真实验证
-
-手动验证会对线上 endpoint 发起真实请求，并且有意与默认测试隔离。
-
-执行全部 endpoint：
-
-```bash
-go run ./cmd/manualtest
-```
-
-只执行部分 endpoint：
-
-```bash
-go run ./cmd/manualtest -only search,video
-```
-
-也可以通过环境变量选择：
-
-```bash
-JAVDB_MANUAL_ONLY=search,video go run ./cmd/manualtest
-```
-
-## 手动验证环境变量
-
-Client 配置：
-
-- `JAVDB_BASE_URL`：可选，默认 `https://javdb.com`
-- `JAVDB_PROXY_URL`：可选，代理地址
-- `JAVDB_TIMEOUT`：可选，`time.Duration` 格式（例如 `30s`），默认 `30s`
-- `JAVDB_USER_AGENT`：可选，自定义 User-Agent
-
-手动验证选择器：
-
-- `JAVDB_MANUAL_ONLY`：可选，逗号分隔，可选值为 `home,search,maker,actor,ranking,video`
-
-真实验证样例输入（可选）：
-
-- `JAVDB_SAMPLE_KEYWORD`（默认：`VR`）
-- `JAVDB_SAMPLE_MAKER_ID`（默认：`7R`）
-- `JAVDB_SAMPLE_ACTOR_ID`（默认：`neRNX`）
-- `JAVDB_SAMPLE_VIDEO_PATH`（默认：`/v/ZNdEbV`）
-
-示例：
-
-```bash
-JAVDB_BASE_URL=https://javdb.com \
-JAVDB_PROXY_URL=http://127.0.0.1:7890 \
-JAVDB_TIMEOUT=30s \
-JAVDB_USER_AGENT="Mozilla/5.0" \
-JAVDB_SAMPLE_KEYWORD=VR \
-JAVDB_SAMPLE_MAKER_ID=7R \
-JAVDB_SAMPLE_ACTOR_ID=neRNX \
-JAVDB_SAMPLE_VIDEO_PATH=/v/ZNdEbV \
-go run ./cmd/manualtest -only search,video
-```

@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/RPbro/javdbapi/internal/web"
 )
 
 const (
@@ -361,6 +363,64 @@ func newFixtureServer(t *testing.T) *httptest.Server {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return server
+}
+
+func TestSearchUnexpectedStatusPreservesStatusCode(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == fixtureSearchPath {
+			http.Error(w, "rate limited", http.StatusTooManyRequests)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	c, err := NewClient(Config{BaseURL: srv.URL, Timeout: 5 * time.Second})
+	require.NoError(t, err)
+
+	_, err = c.Search(context.Background(), SearchQuery{Keyword: "abc", Page: 1})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrUnexpectedStatus))
+
+	var use *web.UnexpectedStatusError
+	require.True(t, errors.As(err, &use))
+	assert.Equal(t, http.StatusTooManyRequests, use.StatusCode)
+}
+
+func TestVideoUnexpectedStatusPreservesStatusCode(t *testing.T) {
+	t.Parallel()
+
+	videoHTML, err := os.ReadFile(filepath.Join("internal", "testdata", "video.html"))
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case fixtureVideoPath:
+			_, _ = w.Write(videoHTML)
+		case fixtureReviewsPath:
+			http.Error(w, "rate limited", http.StatusTooManyRequests)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	c, err := NewClient(Config{BaseURL: srv.URL, Timeout: 5 * time.Second})
+	require.NoError(t, err)
+
+	_, err = c.Video(context.Background(), VideoQuery{Path: fixtureVideoPath})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrUnexpectedStatus))
+
+	var use *web.UnexpectedStatusError
+	require.True(t, errors.As(err, &use))
+	assert.Equal(t, http.StatusTooManyRequests, use.StatusCode)
 }
 
 func newListOnlyFixtureServer(t *testing.T) (*httptest.Server, *requestStats) {

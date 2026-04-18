@@ -92,7 +92,7 @@ func (c *Client) fetchList(ctx context.Context, route string, params map[string]
 	if err != nil {
 		var use *web.UnexpectedStatusError
 		if errors.As(err, &use) {
-			return nil, fmt.Errorf("%w: %v", ErrUnexpectedStatus, err)
+			return nil, fmt.Errorf("%w: %w", ErrUnexpectedStatus, err)
 		}
 		return nil, fmt.Errorf("fetch list page: %w", err)
 	}

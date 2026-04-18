@@ -24,7 +24,7 @@ func (c *Client) Video(ctx context.Context, query VideoQuery) (*Video, error) {
 	if err != nil {
 		var use *web.UnexpectedStatusError
 		if errors.As(err, &use) {
-			return nil, fmt.Errorf("%w: %v", ErrUnexpectedStatus, err)
+			return nil, fmt.Errorf("%w: %w", ErrUnexpectedStatus, err)
 		}
 		return nil, fmt.Errorf("fetch detail page: %w", err)
 	}
@@ -64,7 +64,7 @@ func (c *Client) Video(ctx context.Context, query VideoQuery) (*Video, error) {
 	if err != nil {
 		var use *web.UnexpectedStatusError
 		if errors.As(err, &use) {
-			return nil, fmt.Errorf("%w: %v", ErrUnexpectedStatus, err)
+			return nil, fmt.Errorf("%w: %w", ErrUnexpectedStatus, err)
 		}
 		return nil, fmt.Errorf("fetch reviews page: %w", err)
 	}

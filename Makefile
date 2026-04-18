@@ -1,4 +1,4 @@
-.PHONY: fmt lint test manualtest
+.PHONY: fmt lint test
 
 fmt:
 	@echo "Formatting Go files..."
@@ -15,8 +15,3 @@ test:
 	@echo "Running tests..."
 	@go test -v ./...
 	@echo "Tests complete"
-
-manualtest:
-	@echo "Running manual tests..."
-	@go run ./cmd/manualtest
-	@echo "Manual tests complete"

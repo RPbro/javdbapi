@@ -127,6 +127,59 @@ func main() {
 
 List endpoints (`Home`, `Search`, `Maker`, `Actor`, `Ranking`) return summary-level `Video` items from list pages. Use `Video` when you need full detail fields such as `PreviewURL`, `Actors`, `Tags`, `Screenshots`, `Magnets`, and `Reviews`.
 
+## CLI
+
+Install:
+
+```bash
+go install github.com/RPbro/javdbapi/cmd/javdbapi@latest
+```
+
+Or run locally:
+
+```bash
+go run ./cmd/javdbapi --help
+```
+
+Examples:
+
+```bash
+go run ./cmd/javdbapi search --keyword VR --page 1 --max-pages 2
+go run ./cmd/javdbapi maker --id 7R --filter playable --output both
+go run ./cmd/javdbapi actor --id neRNX --filter c,d --stale-after 48h
+go run ./cmd/javdbapi ranking --period weekly --type censored
+go run ./cmd/javdbapi video --path /v/ZNdEbV --output console
+go run ./cmd/javdbapi video --url https://javdb.com/v/ZNdEbV --output file
+```
+
+Output files are written to `./output` by default and use the `metadata + video` structure:
+
+```json
+{
+  "metadata": {
+    "last_updated": "2026-04-18T10:20:30Z",
+    "path": "/v/ZNdEbV",
+    "path_key": "ZNdEbV",
+    "sources": [
+      {
+        "command": "video",
+        "query": {
+          "path": "/v/ZNdEbV"
+        }
+      }
+    ]
+  },
+  "video": {
+    "id": "/v/ZNdEbV"
+  }
+}
+```
+
+Notes:
+
+- `--stale-after` uses Go `time.Duration` syntax such as `30m`, `90m`, or `1h30m`.
+- `console` mode still checks `--output-dir` for fresh cache entries; when a fresh file is found, stdout stays empty and the skip reason is logged to stderr.
+
 ## Test Strategy
 
 ### Default tests
@@ -136,59 +189,3 @@ go test ./...
 ```
 
 Default tests are offline and deterministic, using local fixtures and `httptest`. They do not require external network access.
-
-### Manual real verification
-
-Manual verification runs real requests against live endpoints and is intentionally separated from default tests.
-
-Run all endpoints:
-
-```bash
-go run ./cmd/manualtest
-```
-
-Run selected endpoints:
-
-```bash
-go run ./cmd/manualtest -only search,video
-```
-
-Or with environment variable selector:
-
-```bash
-JAVDB_MANUAL_ONLY=search,video go run ./cmd/manualtest
-```
-
-## Manual Verification Environment Variables
-
-Client config:
-
-- `JAVDB_BASE_URL`: optional, default `https://javdb.com`
-- `JAVDB_PROXY_URL`: optional proxy URL
-- `JAVDB_TIMEOUT`: optional duration string (for example `30s`), default `30s`
-- `JAVDB_USER_AGENT`: optional custom user agent
-
-Manual selector:
-
-- `JAVDB_MANUAL_ONLY`: optional, comma-separated endpoints from `home,search,maker,actor,ranking,video`
-
-Optional sample inputs for real endpoint checks:
-
-- `JAVDB_SAMPLE_KEYWORD` (default: `VR`)
-- `JAVDB_SAMPLE_MAKER_ID` (default: `7R`)
-- `JAVDB_SAMPLE_ACTOR_ID` (default: `neRNX`)
-- `JAVDB_SAMPLE_VIDEO_PATH` (default: `/v/ZNdEbV`)
-
-Example:
-
-```bash
-JAVDB_BASE_URL=https://javdb.com \
-JAVDB_PROXY_URL=http://127.0.0.1:7890 \
-JAVDB_TIMEOUT=30s \
-JAVDB_USER_AGENT="Mozilla/5.0" \
-JAVDB_SAMPLE_KEYWORD=VR \
-JAVDB_SAMPLE_MAKER_ID=7R \
-JAVDB_SAMPLE_ACTOR_ID=neRNX \
-JAVDB_SAMPLE_VIDEO_PATH=/v/ZNdEbV \
-go run ./cmd/manualtest -only search,video
-```
