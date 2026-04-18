@@ -11,21 +11,21 @@ type Config struct {
 }
 
 type Video struct {
-	ID          string
-	Title       string
-	Code        string
-	URL         string
-	CoverURL    string
-	PublishedAt time.Time
-	Score       float64
-	ScoreCount  int
-	HasSubtitle bool
-	PreviewURL  string
-	Actors      []string
-	Tags        []string
-	Screenshots []string
-	Magnets     []string
-	Reviews     []string
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Code        string    `json:"code"`
+	URL         string    `json:"url"`
+	CoverURL    string    `json:"cover_url"`
+	PublishedAt time.Time `json:"published_at"`
+	Score       float64   `json:"score"`
+	ScoreCount  int       `json:"score_count"`
+	HasSubtitle bool      `json:"has_subtitle"`
+	PreviewURL  string    `json:"preview_url"`
+	Actors      []string  `json:"actors"`
+	Tags        []string  `json:"tags"`
+	Screenshots []string  `json:"screenshots"`
+	Magnets     []string  `json:"magnets"`
+	Reviews     []string  `json:"reviews"`
 }
 
 type HomeType string
