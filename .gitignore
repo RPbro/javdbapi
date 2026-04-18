@@ -12,4 +12,10 @@
 
 vendor/
 
+.claude/
+.codex/
+.superpowers/
 docs/
+AGENT.md
+CLAUDE.md
+GEMINI.md
