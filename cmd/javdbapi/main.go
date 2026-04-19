@@ -16,6 +16,12 @@ import (
 	"github.com/RPbro/javdbapi/internal/clioutput"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 type executor interface {
 	RunList(context.Context, cliapp.ListRequest) (cliapp.Summary, error)
 	RunVideo(context.Context, cliapp.VideoRequest) (cliapp.Summary, error)
@@ -29,11 +35,40 @@ func main() {
 	}
 }
 
+func formatVersionLine() string {
+	return fmt.Sprintf("javdbapi %s (commit %s, built %s)", version, commit, date)
+}
+
+func printVersionLine(w io.Writer) error {
+	_, err := fmt.Fprintln(w, formatVersionLine())
+	return err
+}
+
+func newVersionCommand(stdout io.Writer) *cli.Command {
+	return &cli.Command{
+		Name:  "version",
+		Usage: "print build version information",
+		Action: func(context.Context, *cli.Command) error {
+			return printVersionLine(stdout)
+		},
+	}
+}
+
+func init() {
+	cli.VersionPrinter = func(cmd *cli.Command) {
+		_, _ = fmt.Fprintln(cmd.Root().Writer, cmd.Root().Version)
+	}
+}
+
 func newCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
 	return &cli.Command{
-		Name:  "javdbapi",
-		Usage: "official CLI for javdbapi scraping workflows",
+		Name:      "javdbapi",
+		Usage:     "official CLI for javdbapi scraping workflows",
+		Version:   formatVersionLine(),
+		Writer:    stdout,
+		ErrWriter: stderr,
 		Commands: []*cli.Command{
+			newVersionCommand(stdout),
 			newSearchCommand(ex, stdout, stderr),
 			newHomeCommand(ex, stdout, stderr),
 			newMakerCommand(ex, stdout, stderr),

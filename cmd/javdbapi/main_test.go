@@ -108,3 +108,81 @@ func TestSearchCommandDoesNotLogDoneOnZeroSummaryError(t *testing.T) {
 	require.ErrorIs(t, err, assert.AnError)
 	assert.NotContains(t, stderr.String(), "msg=done")
 }
+
+func TestRootVersionFlagPrintsBuildMetadata(t *testing.T) {
+	oldVersion, oldCommit, oldDate := version, commit, date
+	t.Cleanup(func() {
+		version = oldVersion
+		commit = oldCommit
+		date = oldDate
+	})
+
+	version = "v0.2.1"
+	commit = "abc1234"
+	date = "2026-04-19T09:00:00Z"
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := newCommand(&fakeExecutor{}, &stdout, &stderr)
+
+	err := cmd.Run(context.Background(), []string{"javdbapi", "--version"})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"javdbapi v0.2.1 (commit abc1234, built 2026-04-19T09:00:00Z)\n",
+		stdout.String(),
+	)
+	assert.Empty(t, stderr.String())
+}
+
+func TestVersionCommandPrintsBuildMetadata(t *testing.T) {
+	oldVersion, oldCommit, oldDate := version, commit, date
+	t.Cleanup(func() {
+		version = oldVersion
+		commit = oldCommit
+		date = oldDate
+	})
+
+	version = "v0.2.1"
+	commit = "abc1234"
+	date = "2026-04-19T09:00:00Z"
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := newCommand(&fakeExecutor{}, &stdout, &stderr)
+
+	err := cmd.Run(context.Background(), []string{"javdbapi", "version"})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"javdbapi v0.2.1 (commit abc1234, built 2026-04-19T09:00:00Z)\n",
+		stdout.String(),
+	)
+	assert.Empty(t, stderr.String())
+}
+
+func TestVersionCommandPrintsDefaultBuildMetadata(t *testing.T) {
+	oldVersion, oldCommit, oldDate := version, commit, date
+	t.Cleanup(func() {
+		version = oldVersion
+		commit = oldCommit
+		date = oldDate
+	})
+
+	version = "dev"
+	commit = "none"
+	date = "unknown"
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd := newCommand(&fakeExecutor{}, &stdout, &stderr)
+
+	err := cmd.Run(context.Background(), []string{"javdbapi", "version"})
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		"javdbapi dev (commit none, built unknown)\n",
+		stdout.String(),
+	)
+	assert.Empty(t, stderr.String())
+}
