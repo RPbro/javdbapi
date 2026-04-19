@@ -3,11 +3,13 @@ package cliapp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -423,6 +425,92 @@ func TestRunVideoCommandRetriesRateLimitThenSucceeds(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, attempts)
 	assert.Equal(t, Summary{Fetched: 1}, summary)
+}
+
+func TestRunListCommandMayReturnPartialNDJSONBeforeExitOne(t *testing.T) {
+	t.Parallel()
+
+	store := clioutput.NewStore(t.TempDir(), time.Now)
+	fetcher := &fakeFetcher{
+		searchPages: map[int][]javdbapi.Video{
+			1: {
+				{ID: "/v/good", Code: "GOOD-001", Title: "good"},
+				{ID: "/v/bad", Code: "BAD-001", Title: "bad"},
+			},
+		},
+		videoByPath: map[string]*javdbapi.Video{
+			"/v/good": {ID: "/v/good", Code: "GOOD-001", Title: "good"},
+		},
+		videoErrs: map[string]error{
+			"/v/bad": fmt.Errorf("detail fetch failed"),
+		},
+	}
+
+	var stdout bytes.Buffer
+	summary, err := RunListCommand(context.Background(), fetcher, store, ListRequest{
+		Shared: SharedOptions{
+			OutputMode: OutputConsole,
+			OutputDir:  t.TempDir(),
+			StaleAfter: 24 * time.Hour,
+			Stdout:     &stdout,
+			Logger:     testLogger(),
+		},
+		Command:  CommandSearch,
+		Page:     1,
+		MaxPages: 1,
+		Search:   &javdbapi.SearchQuery{Keyword: "VR"},
+	})
+	require.Error(t, err)
+	assert.Equal(t, Summary{PagesScanned: 1, Candidates: 2, Deduplicated: 2, Fetched: 1, Failed: 1}, summary)
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	require.Len(t, lines, 1)
+	assert.True(t, json.Valid([]byte(lines[0])))
+	assert.Contains(t, lines[0], `"path":"/v/good"`)
+}
+
+func TestRunVideoCommandBothModeDoesNotWriteStdoutWhenCacheIsFresh(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+	dir := t.TempDir()
+	store := clioutput.NewStore(dir, func() time.Time { return now })
+	require.NoError(t, store.WriteFile(clioutput.Document{
+		Metadata: clioutput.Metadata{
+			LastUpdated: now.Add(-1 * time.Hour),
+			Path:        "/v/fresh",
+			PathKey:     "fresh",
+			Sources:     []clioutput.Source{clioutput.NewVideoSource("/v/fresh")},
+		},
+		Video: javdbapi.Video{ID: "/v/fresh", Code: "FRESH-001"},
+	}))
+
+	var stdout bytes.Buffer
+	summary, err := RunVideoCommand(context.Background(), &fakeFetcher{}, store, VideoRequest{
+		Shared: SharedOptions{
+			OutputMode: OutputBoth,
+			OutputDir:  dir,
+			StaleAfter: 24 * time.Hour,
+			BaseURL:    "https://javdb.com",
+			Stdout:     &stdout,
+			Logger:     testLogger(),
+		},
+		Path: "/v/fresh",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, Summary{SkippedFresh: 1}, summary)
+	assert.Empty(t, stdout.String())
+}
+
+func TestCanonicalVideoPathRejectsMissingAndMixedLocatorInputs(t *testing.T) {
+	t.Parallel()
+
+	_, err := canonicalVideoPath("https://javdb.com", "", "")
+	require.Error(t, err)
+	assert.Equal(t, "exactly one of --path or --url is required", err.Error())
+
+	_, err = canonicalVideoPath("https://javdb.com", "/v/ZNdEbV", "https://javdb.com/v/ZNdEbV")
+	require.Error(t, err)
+	assert.Equal(t, "exactly one of --path or --url is required", err.Error())
 }
 
 func TestRunListCommandRetriesRateLimitedListPage(t *testing.T) {

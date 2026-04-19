@@ -135,50 +135,134 @@ Install:
 go install github.com/RPbro/javdbapi/cmd/javdbapi@latest
 ```
 
-Or run locally:
+Quick start:
 
 ```bash
-go run ./cmd/javdbapi --help
+javdbapi search --keyword VR --output console
+javdbapi actor --id neRNX --filter cnsub,download --stale-after 48h
+javdbapi video --path /v/ZNdEbV --output console
 ```
+
+### Shared Flags
+
+| Flag            | Type     | Default             | Description                                                                                         |
+| --------------- | -------- | ------------------- | --------------------------------------------------------------------------------------------------- |
+| `--output`      | string   | `file`              | Output mode: `file`, `console`, `both`                                                              |
+| `--output-dir`  | string   | `./output`          | Directory for output files                                                                          |
+| `--stale-after` | duration | `24h`               | Skip fetch when cache is fresh; `0s` bypasses ordinary freshness checks for normal cache timestamps |
+| `--timeout`     | duration | `30s`               | HTTP request timeout                                                                                |
+| `--delay`       | duration | `1s`                | Delay between requests                                                                              |
+| `--proxy-url`   | string   | —                   | HTTP/SOCKS5 proxy URL                                                                               |
+| `--base-url`    | string   | `https://javdb.com` | Override base URL                                                                                   |
+| `--user-agent`  | string   | —                   | Custom User-Agent header                                                                            |
+| `--debug`       | bool     | `false`             | Enable debug logs on stderr                                                                         |
+| `--fail-fast`   | bool     | `false`             | Stop list processing after the first failing video                                                  |
+
+### search
 
 Examples:
 
 ```bash
-go run ./cmd/javdbapi search --keyword VR --page 1 --max-pages 2
-go run ./cmd/javdbapi maker --id 7R --filter playable --output both
-go run ./cmd/javdbapi actor --id neRNX --filter c,d --stale-after 48h
-go run ./cmd/javdbapi ranking --period weekly --type censored
-go run ./cmd/javdbapi video --path /v/ZNdEbV --output console
-go run ./cmd/javdbapi video --url https://javdb.com/v/ZNdEbV --output file
+javdbapi search --keyword VR
+javdbapi search --keyword VR --page 2 --max-pages 3 --output both
 ```
 
-Output files are written to `./output` by default and use the `metadata + video` structure:
+### home
 
-```json
-{
-  "metadata": {
-    "last_updated": "2026-04-18T10:20:30Z",
-    "path": "/v/ZNdEbV",
-    "path_key": "ZNdEbV",
-    "sources": [
-      {
-        "command": "video",
-        "query": {
-          "path": "/v/ZNdEbV"
-        }
-      }
-    ]
-  },
-  "video": {
-    "id": "/v/ZNdEbV"
-  }
-}
+Canonical values:
+
+| Flag       | Values                                     | Notes                                        |
+| ---------- | ------------------------------------------ | -------------------------------------------- |
+| `--type`   | `all`, `censored`, `uncensored`, `western` | `all` keeps the omitted request behavior     |
+| `--filter` | `all`, `download`, `cnsub`, `review`       | `all` keeps the omitted request behavior     |
+| `--sort`   | `publish`, `magnet`                        | `publish` keeps the omitted request behavior |
+
+Examples:
+
+```bash
+javdbapi home --type censored --filter all --sort publish
+javdbapi home --sort magnet --output console
 ```
 
-Notes:
+### actor
 
-- `--stale-after` uses Go `time.Duration` syntax such as `30m`, `90m`, or `1h30m`.
-- `console` mode still checks `--output-dir` for fresh cache entries; when a fresh file is found, stdout stays empty and the skip reason is logged to stderr.
+Canonical values:
+
+| Flag       | Values                                           | Notes                                                     |
+| ---------- | ------------------------------------------------ | --------------------------------------------------------- |
+| `--filter` | `all`, `playable`, `single`, `download`, `cnsub` | comma-separated; legacy `p,s,d,c` aliases remain accepted |
+
+Examples:
+
+```bash
+javdbapi actor --id neRNX --filter cnsub,download
+javdbapi actor --id neRNX --filter c,d
+```
+
+### maker
+
+Canonical values:
+
+| Flag       | Values                                                      | Notes                                    |
+| ---------- | ----------------------------------------------------------- | ---------------------------------------- |
+| `--filter` | `all`, `playable`, `single`, `download`, `cnsub`, `preview` | `all` keeps the omitted request behavior |
+
+Examples:
+
+```bash
+javdbapi maker --id 7R
+javdbapi maker --id 7R --filter playable --output both
+```
+
+### ranking
+
+Canonical values:
+
+| Flag       | Values                              | Notes    |
+| ---------- | ----------------------------------- | -------- |
+| `--period` | `daily`, `weekly`, `monthly`        | required |
+| `--type`   | `censored`, `uncensored`, `western` | required |
+
+Examples:
+
+```bash
+javdbapi ranking --period weekly --type censored
+javdbapi ranking --period daily --type western --stale-after 0s --output console
+```
+
+### video
+
+Rules:
+
+- exactly one of `--path` or `--url` is required
+- when `--url` is used, its host must match the host implied by `--base-url`
+
+Examples:
+
+```bash
+javdbapi video --path /v/ZNdEbV --output console
+javdbapi video --url https://javdb.com/v/ZNdEbV --base-url https://javdb.com --output both
+```
+
+### AI / Programmatic Usage
+
+- For data commands, stdout is JSON-only in `console` and `both`.
+- `help` and `version` write text to stdout.
+- stderr is not JSON and should never be sent to a JSON parser.
+- Exit code `1` may still arrive after partial valid NDJSON has already been written.
+- Empty stdout with exit code `0` can mean a fresh cache hit.
+- `--stale-after 0s` can be used when the caller wants to bypass ordinary fresh-cache checks.
+- For `video`, exactly one of `--path` or `--url` is required.
+- For `video`, the host in `--url` must match the host implied by `--base-url`.
+- Enum validation errors use the stable `invalid --<flag> "<value>": <reason>` format in this iteration.
+
+Programmatic examples:
+
+```bash
+javdbapi video --path /v/ZNdEbV --output console | jq '.video.code'
+javdbapi video --url https://javdb.com/v/ZNdEbV --proxy-url http://127.0.0.1:7890 --output console | jq '.metadata.path'
+javdbapi ranking --period weekly --type censored --stale-after 0s --output console | jq -c '.video.code'
+```
 
 ## Test Strategy
 

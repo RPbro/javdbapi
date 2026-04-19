@@ -59,3 +59,29 @@ func TestSourceBuildersMarshalStableQueries(t *testing.T) {
 		string(raw),
 	)
 }
+
+func TestNewActorSourceSerializesNormalizedRequestValues(t *testing.T) {
+	t.Parallel()
+
+	actor := NewActorSource("neRNX", []string{"d", "", "c", "d"}, 2)
+	raw, err := json.Marshal(actor)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		`{"command":"actor","query":{"id":"neRNX","filter":["c","d"],"page":2}}`,
+		string(raw),
+	)
+}
+
+func TestNewHomeSourceOmitsDefaultRequestValues(t *testing.T) {
+	t.Parallel()
+
+	home := NewHomeSource("", "", "", 1)
+	raw, err := json.Marshal(home)
+	require.NoError(t, err)
+	assert.Equal(
+		t,
+		`{"command":"home","query":{"page":1}}`,
+		string(raw),
+	)
+}

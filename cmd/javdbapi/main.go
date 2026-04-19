@@ -81,16 +81,16 @@ func newCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
 
 func sharedFlags() []cli.Flag {
 	return []cli.Flag{
-		&cli.StringFlag{Name: "output", Value: "file"},
-		&cli.StringFlag{Name: "output-dir", Value: "./output"},
-		&cli.DurationFlag{Name: "stale-after", Value: 24 * time.Hour},
-		&cli.DurationFlag{Name: "timeout", Value: 30 * time.Second},
-		&cli.StringFlag{Name: "proxy-url"},
-		&cli.StringFlag{Name: "base-url", Value: "https://javdb.com"},
-		&cli.StringFlag{Name: "user-agent"},
-		&cli.BoolFlag{Name: "debug"},
-		&cli.BoolFlag{Name: "fail-fast"},
-		&cli.DurationFlag{Name: "delay", Value: 1 * time.Second},
+		&cli.StringFlag{Name: "output", Usage: outputModeSpec.usage()},
+		&cli.StringFlag{Name: "output-dir", Value: "./output", Usage: "directory for output files"},
+		&cli.DurationFlag{Name: "stale-after", Value: 24 * time.Hour, Usage: "skip fetch when cached file is newer than duration, e.g. 24h, 48h"},
+		&cli.DurationFlag{Name: "timeout", Value: 30 * time.Second, Usage: "HTTP request timeout"},
+		&cli.StringFlag{Name: "proxy-url", Usage: "HTTP/SOCKS5 proxy URL, e.g. http://127.0.0.1:7890"},
+		&cli.StringFlag{Name: "base-url", Value: "https://javdb.com", Usage: "override base URL"},
+		&cli.StringFlag{Name: "user-agent", Usage: "custom User-Agent header"},
+		&cli.BoolFlag{Name: "debug", Usage: "enable debug logging to stderr"},
+		&cli.BoolFlag{Name: "fail-fast", Usage: "stop on first error"},
+		&cli.DurationFlag{Name: "delay", Value: 1 * time.Second, Usage: "delay between requests"},
 	}
 }
 
@@ -101,7 +101,12 @@ func listFlags() []cli.Flag {
 	)
 }
 
-func sharedOptionsFromCommand(cmd *cli.Command, stdout io.Writer, stderr io.Writer) cliapp.SharedOptions {
+func sharedOptionsFromCommand(cmd *cli.Command, stdout io.Writer, stderr io.Writer) (cliapp.SharedOptions, error) {
+	outputMode, err := parseOutputMode(cmd.String("output"))
+	if err != nil {
+		return cliapp.SharedOptions{}, err
+	}
+
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{
 		Level: func() slog.Level {
 			if cmd.Bool("debug") {
@@ -112,7 +117,7 @@ func sharedOptionsFromCommand(cmd *cli.Command, stdout io.Writer, stderr io.Writ
 	}))
 
 	return cliapp.SharedOptions{
-		OutputMode: cliapp.OutputMode(cmd.String("output")),
+		OutputMode: outputMode,
 		OutputDir:  cmd.String("output-dir"),
 		StaleAfter: cmd.Duration("stale-after"),
 		Timeout:    cmd.Duration("timeout"),
@@ -124,11 +129,13 @@ func sharedOptionsFromCommand(cmd *cli.Command, stdout io.Writer, stderr io.Writ
 		Logger:     logger,
 		FailFast:   cmd.Bool("fail-fast"),
 		Delay:      cmd.Duration("delay"),
-	}
+	}, nil
 }
 
 func newListCommand(
 	name string,
+	usage string,
+	usageText string,
 	extra []cli.Flag,
 	ex executor,
 	stdout io.Writer,
@@ -136,14 +143,20 @@ func newListCommand(
 	build func(*cli.Command) (cliapp.ListRequest, error),
 ) *cli.Command {
 	return &cli.Command{
-		Name:  name,
-		Flags: append(listFlags(), extra...),
+		Name:      name,
+		Usage:     usage,
+		UsageText: usageText,
+		Flags:     append(listFlags(), extra...),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			req, err := build(cmd)
 			if err != nil {
 				return err
 			}
-			req.Shared = sharedOptionsFromCommand(cmd, stdout, stderr)
+			shared, err := sharedOptionsFromCommand(cmd, stdout, stderr)
+			if err != nil {
+				return err
+			}
+			req.Shared = shared
 			summary, err := ex.RunList(ctx, req)
 			logSummary(req.Shared.Logger, summary, err)
 			return err
@@ -152,8 +165,8 @@ func newListCommand(
 }
 
 func newSearchCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
-	return newListCommand("search", []cli.Flag{
-		&cli.StringFlag{Name: "keyword", Required: true},
+	return newListCommand("search", "search videos by keyword", "javdbapi search --keyword VR", []cli.Flag{
+		&cli.StringFlag{Name: "keyword", Required: true, Usage: "search keyword"},
 	}, ex, stdout, stderr, func(cmd *cli.Command) (cliapp.ListRequest, error) {
 		return cliapp.ListRequest{
 			Command:  cliapp.CommandSearch,
@@ -165,32 +178,44 @@ func newSearchCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Comm
 }
 
 func newHomeCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
-	return newListCommand("home", []cli.Flag{
-		&cli.StringFlag{Name: "type"},
-		&cli.StringFlag{Name: "filter"},
-		&cli.StringFlag{Name: "sort"},
+	return newListCommand("home", "browse home page listings", "javdbapi home --type censored --filter all --sort publish", []cli.Flag{
+		newStringFlag("type", homeTypeSpec, false),
+		newStringFlag("filter", homeFilterSpec, false),
+		newStringFlag("sort", homeSortSpec, false),
 	}, ex, stdout, stderr, func(cmd *cli.Command) (cliapp.ListRequest, error) {
+		homeType, err := parseHomeType(cmd.String("type"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
+		}
+		homeFilter, err := parseHomeFilter(cmd.String("filter"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
+		}
+		homeSort, err := parseHomeSort(cmd.String("sort"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
+		}
 		return cliapp.ListRequest{
 			Command:  cliapp.CommandHome,
 			Page:     cmd.Int("page"),
 			MaxPages: cmd.Int("max-pages"),
 			Home: &javdbapi.HomeQuery{
-				Type:   javdbapi.HomeType(cmd.String("type")),
-				Filter: javdbapi.HomeFilter(cmd.String("filter")),
-				Sort:   javdbapi.HomeSort(cmd.String("sort")),
+				Type:   homeType,
+				Filter: homeFilter,
+				Sort:   homeSort,
 			},
 		}, nil
 	})
 }
 
 func newMakerCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
-	return newListCommand("maker", []cli.Flag{
-		&cli.StringFlag{Name: "id", Required: true},
-		&cli.StringFlag{Name: "filter"},
+	return newListCommand("maker", "list videos from a maker", "javdbapi maker --id 7R --filter playable", []cli.Flag{
+		&cli.StringFlag{Name: "id", Required: true, Usage: "maker ID"},
+		newStringFlag("filter", makerFilterSpec, false),
 	}, ex, stdout, stderr, func(cmd *cli.Command) (cliapp.ListRequest, error) {
-		filter := cmd.String("filter")
-		if strings.Contains(filter, ",") {
-			return cliapp.ListRequest{}, fmt.Errorf("maker --filter accepts a single value")
+		filter, err := parseMakerFilter(cmd.String("filter"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
 		}
 		return cliapp.ListRequest{
 			Command:  cliapp.CommandMaker,
@@ -198,21 +223,20 @@ func newMakerCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Comma
 			MaxPages: cmd.Int("max-pages"),
 			Maker: &javdbapi.MakerQuery{
 				MakerID: cmd.String("id"),
-				Filter:  javdbapi.MakerFilter(filter),
+				Filter:  filter,
 			},
 		}, nil
 	})
 }
 
 func newActorCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
-	return newListCommand("actor", []cli.Flag{
-		&cli.StringFlag{Name: "id", Required: true},
-		&cli.StringFlag{Name: "filter"},
+	return newListCommand("actor", "list videos from an actor", "javdbapi actor --id neRNX --filter cnsub,download", []cli.Flag{
+		&cli.StringFlag{Name: "id", Required: true, Usage: "actor ID"},
+		newStringFlag("filter", actorFilterSpec, false),
 	}, ex, stdout, stderr, func(cmd *cli.Command) (cliapp.ListRequest, error) {
-		rawFilters := parseCommaValues(cmd.String("filter"))
-		actorFilters := make([]javdbapi.ActorFilter, 0, len(rawFilters))
-		for _, filter := range rawFilters {
-			actorFilters = append(actorFilters, javdbapi.ActorFilter(filter))
+		filters, err := parseActorFilters(cmd.String("filter"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
 		}
 		return cliapp.ListRequest{
 			Command:  cliapp.CommandActor,
@@ -220,24 +244,32 @@ func newActorCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Comma
 			MaxPages: cmd.Int("max-pages"),
 			Actor: &javdbapi.ActorQuery{
 				ActorID: cmd.String("id"),
-				Filters: actorFilters,
+				Filters: filters,
 			},
 		}, nil
 	})
 }
 
 func newRankingCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
-	return newListCommand("ranking", []cli.Flag{
-		&cli.StringFlag{Name: "period", Required: true},
-		&cli.StringFlag{Name: "type", Required: true},
+	return newListCommand("ranking", "fetch ranked videos", "javdbapi ranking --period weekly --type censored", []cli.Flag{
+		newStringFlag("period", rankingPeriodSpec, true),
+		newStringFlag("type", rankingTypeSpec, true),
 	}, ex, stdout, stderr, func(cmd *cli.Command) (cliapp.ListRequest, error) {
+		period, err := parseRankingPeriod(cmd.String("period"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
+		}
+		rankingType, err := parseRankingType(cmd.String("type"))
+		if err != nil {
+			return cliapp.ListRequest{}, err
+		}
 		return cliapp.ListRequest{
 			Command:  cliapp.CommandRanking,
 			Page:     cmd.Int("page"),
 			MaxPages: cmd.Int("max-pages"),
 			Ranking: &javdbapi.RankingQuery{
-				Period: javdbapi.RankingPeriod(cmd.String("period")),
-				Type:   javdbapi.RankingType(cmd.String("type")),
+				Period: period,
+				Type:   rankingType,
 			},
 		}, nil
 	})
@@ -245,14 +277,20 @@ func newRankingCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Com
 
 func newVideoCommand(ex executor, stdout io.Writer, stderr io.Writer) *cli.Command {
 	return &cli.Command{
-		Name: "video",
+		Name:      "video",
+		Usage:     "fetch full video detail",
+		UsageText: "javdbapi video --path /v/ZNdEbV",
 		Flags: append(sharedFlags(),
-			&cli.StringFlag{Name: "path"},
-			&cli.StringFlag{Name: "url"},
+			&cli.StringFlag{Name: "path", Usage: "video path, e.g. /v/ZNdEbV"},
+			&cli.StringFlag{Name: "url", Usage: "full video URL; host must match --base-url"},
 		),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			shared, err := sharedOptionsFromCommand(cmd, stdout, stderr)
+			if err != nil {
+				return err
+			}
 			req := cliapp.VideoRequest{
-				Shared: sharedOptionsFromCommand(cmd, stdout, stderr),
+				Shared: shared,
 				Path:   cmd.String("path"),
 				URL:    cmd.String("url"),
 			}

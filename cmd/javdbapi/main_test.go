@@ -161,6 +161,176 @@ func TestVersionCommandPrintsBuildMetadata(t *testing.T) {
 	assert.Empty(t, stderr.String())
 }
 
+func TestRootHelpShowsUsageForDataCommands(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	cmd := newCommand(&fakeExecutor{}, &stdout, io.Discard)
+
+	err := cmd.Run(context.Background(), []string{"javdbapi", "--help"})
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "search")
+	assert.Contains(t, stdout.String(), "search videos by keyword")
+	assert.Contains(t, stdout.String(), "home")
+	assert.Contains(t, stdout.String(), "browse home page listings")
+	assert.Contains(t, stdout.String(), "maker")
+	assert.Contains(t, stdout.String(), "list videos from a maker")
+	assert.Contains(t, stdout.String(), "actor")
+	assert.Contains(t, stdout.String(), "list videos from an actor")
+	assert.Contains(t, stdout.String(), "ranking")
+	assert.Contains(t, stdout.String(), "fetch ranked videos")
+	assert.Contains(t, stdout.String(), "video")
+	assert.Contains(t, stdout.String(), "fetch full video detail")
+}
+
+func TestSubcommandHelpShowsReadableUsageValues(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		args []string
+		want []string
+	}{
+		{
+			args: []string{"javdbapi", "home", "--help"},
+			want: []string{
+				"browse home page listings",
+				"output mode (file|console|both) (default: file)",
+				"home type (all|censored|uncensored|western)",
+				"home filter (all|download|cnsub|review)",
+				"home sort (publish|magnet)",
+			},
+		},
+		{
+			args: []string{"javdbapi", "maker", "--help"},
+			want: []string{
+				"list videos from a maker",
+				"maker filter (all|playable|single|download|cnsub|preview)",
+				"javdbapi maker --id 7R --filter playable",
+			},
+		},
+		{
+			args: []string{"javdbapi", "actor", "--help"},
+			want: []string{
+				"list videos from an actor",
+				"actor filter (all|playable|single|download|cnsub)",
+				"javdbapi actor --id neRNX --filter cnsub,download",
+			},
+		},
+		{
+			args: []string{"javdbapi", "ranking", "--help"},
+			want: []string{
+				"fetch ranked videos",
+				"ranking period (daily|weekly|monthly)",
+				"ranking type (censored|uncensored|western)",
+				"javdbapi ranking --period weekly --type censored",
+			},
+		},
+		{
+			args: []string{"javdbapi", "video", "--help"},
+			want: []string{
+				"fetch full video detail",
+				"output mode (file|console|both) (default: file)",
+				"video path, e.g. /v/ZNdEbV",
+				"full video URL; host must match --base-url",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		var stdout bytes.Buffer
+		cmd := newCommand(&fakeExecutor{}, &stdout, io.Discard)
+		err := cmd.Run(context.Background(), tc.args)
+		require.NoError(t, err)
+		for _, want := range tc.want {
+			assert.Contains(t, stdout.String(), want)
+		}
+	}
+}
+
+func TestSharedOutputHelpShowsSingleDefaultValue(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	cmd := newCommand(&fakeExecutor{}, &stdout, io.Discard)
+
+	err := cmd.Run(context.Background(), []string{"javdbapi", "home", "--help"})
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), "output mode (file|console|both) (default: file)")
+	assert.NotContains(t, stdout.String(), `(default: file) (default: "file")`)
+}
+
+func TestHomeCommandNormalizesReadableDefaultsToOmittedWireValues(t *testing.T) {
+	t.Parallel()
+
+	executor := &fakeExecutor{}
+	cmd := newCommand(executor, io.Discard, io.Discard)
+
+	err := cmd.Run(context.Background(), []string{
+		"javdbapi",
+		"home",
+		"--type", "all",
+		"--filter", "all",
+		"--sort", "publish",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, executor.listReq.Home)
+	assert.Equal(t, javdbapi.HomeType(""), executor.listReq.Home.Type)
+	assert.Equal(t, javdbapi.HomeFilter(""), executor.listReq.Home.Filter)
+	assert.Equal(t, javdbapi.HomeSort(""), executor.listReq.Home.Sort)
+}
+
+func TestActorCommandAcceptsLegacyAliasesButStoresNormalizedRequestValues(t *testing.T) {
+	t.Parallel()
+
+	executor := &fakeExecutor{}
+	cmd := newCommand(executor, io.Discard, io.Discard)
+
+	err := cmd.Run(context.Background(), []string{
+		"javdbapi",
+		"actor",
+		"--id", "neRNX",
+		"--filter", "c,d",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, executor.listReq.Actor)
+	assert.Equal(t, []javdbapi.ActorFilter{"c", "d"}, executor.listReq.Actor.Filters)
+}
+
+func TestCommandValidationRejectsInvalidReadableEnums(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "home legacy numeric filter",
+			args:    []string{"javdbapi", "home", "--filter", "1"},
+			wantErr: `invalid --filter "1": must be one of all, download, cnsub, review`,
+		},
+		{
+			name:    "actor all cannot be combined",
+			args:    []string{"javdbapi", "actor", "--id", "neRNX", "--filter", "all,download"},
+			wantErr: `invalid --filter "all,download": all cannot be combined with other values`,
+		},
+		{
+			name:    "ranking period enum",
+			args:    []string{"javdbapi", "ranking", "--period", "yearly", "--type", "censored"},
+			wantErr: `invalid --period "yearly": must be one of daily, weekly, monthly`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newCommand(&fakeExecutor{}, io.Discard, io.Discard)
+			err := cmd.Run(context.Background(), tc.args)
+			require.Error(t, err)
+			assert.Equal(t, tc.wantErr, err.Error())
+		})
+	}
+}
+
 func TestVersionCommandPrintsDefaultBuildMetadata(t *testing.T) {
 	oldVersion, oldCommit, oldDate := version, commit, date
 	t.Cleanup(func() {
