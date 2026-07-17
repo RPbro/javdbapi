@@ -59,6 +59,46 @@ func TestParseListInitializesItemsSlice(t *testing.T) {
 	assert.NotNil(t, got.Value.Items)
 }
 
+func TestParseListSkipsMalformedItems(t *testing.T) {
+	got, err := ParseList(loadFixture(t, "list-partially-invalid.html"), 1)
+	require.NoError(t, err)
+	require.Len(t, got.Value.Items, 3)
+	assert.Equal(t, "VALD01", got.Value.Items[0].ID)
+	assert.Equal(t, "VALD03", got.Value.Items[1].ID)
+	assert.Equal(t, "VALD04", got.Value.Items[2].ID)
+
+	var skipWarning bool
+	for _, w := range got.Warnings {
+		if w.Field == "items[1]" {
+			skipWarning = true
+		}
+	}
+	assert.True(t, skipWarning, "expected a warning naming the skipped item index")
+}
+
+func TestParseListFailsWhenAllItemsAreMalformed(t *testing.T) {
+	_, err := ParseList(loadFixture(t, "list-all-invalid.html"), 1)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrParse))
+}
+
+func TestParseListAllowsMissingScore(t *testing.T) {
+	got, err := ParseList(loadFixture(t, "list-partially-invalid.html"), 1)
+	require.NoError(t, err)
+	require.Len(t, got.Value.Items, 3)
+
+	assert.Nil(t, got.Value.Items[1].Score, "item with no score element must be nil, not zero")
+
+	assert.Nil(t, got.Value.Items[2].Score, "item with unparseable score text must be nil")
+	var scoreWarning bool
+	for _, w := range got.Warnings {
+		if w.Field == "items[3].score" {
+			scoreWarning = true
+		}
+	}
+	assert.True(t, scoreWarning, "expected a score warning naming the malformed item index")
+}
+
 func TestParseListRejectsUnrecognizedEmptyPage(t *testing.T) {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader("<html><body><div class=\"unrelated\"></div></body></html>"))
 	require.NoError(t, err)

@@ -77,14 +77,45 @@ func TestParseDetailAllowsMissingOptionalSections(t *testing.T) {
 	assert.Nil(t, got.Value.WatchedCount)
 }
 
-func TestParseDetailRejectsMissingScore(t *testing.T) {
-	_, err := ParseDetail(loadFixture(t, "detail-invalid.html"), "BAD000")
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrParse))
+func TestParseDetailWarnsOnEmptyScoreValue(t *testing.T) {
+	got, err := ParseDetail(loadFixture(t, "detail-invalid.html"), "BAD000")
+	require.NoError(t, err)
+	assert.Nil(t, got.Value.Summary.Score)
+
+	var found bool
+	for _, w := range got.Warnings {
+		if w.Field == "score" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected a score warning")
 }
 
 func TestParseDetailRejectsEmptyID(t *testing.T) {
 	_, err := ParseDetail(loadFixture(t, "detail-minimal.html"), "  ")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrParse))
+}
+
+func TestParseDetailAllowsMissingScore(t *testing.T) {
+	got, err := ParseDetail(loadFixture(t, "detail-no-score.html"), "NOSC000")
+	require.NoError(t, err)
+	assert.Nil(t, got.Value.Summary.Score)
+	for _, w := range got.Warnings {
+		assert.NotEqual(t, "score", w.Field, "missing score must not produce a warning")
+	}
+}
+
+func TestParseDetailWarnsOnInvalidScore(t *testing.T) {
+	got, err := ParseDetail(loadFixture(t, "detail-invalid-score.html"), "BADSC000")
+	require.NoError(t, err)
+	assert.Nil(t, got.Value.Summary.Score)
+
+	var found bool
+	for _, w := range got.Warnings {
+		if w.Field == "score" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected a score warning")
 }

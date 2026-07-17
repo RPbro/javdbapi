@@ -148,6 +148,11 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("detail: %s, %d actors, %d magnets", detail.Summary.Code, len(detail.Actors), len(detail.Magnets))
+	if detail.Summary.Score != nil {
+		log.Printf("score: %.2f (%d ratings)", detail.Summary.Score.Value, detail.Summary.Score.Count)
+	} else {
+		log.Printf("score: not yet available")
+	}
 
 	reviews, err := client.Reviews(ctx, videoID)
 	if err != nil {
@@ -162,11 +167,12 @@ Key points:
 - `Home`, `Search`, `MakerVideos`, `ActorVideos`, and `Ranking` all return `Page[VideoSummary]`. `Page` never claims a total page count — the site only exposes `rel="next"` pagination, so check `HasNext` to decide whether to keep paginating.
 - `Detail` and `Reviews` are independent requests against `VideoID`. Fetching `Detail` never implicitly fetches `Reviews`, and a `Reviews` failure never invalidates an already-fetched `Detail`.
 - Optional `VideoDetail` sections (`Director`, `Maker`, `Series`) are `nil` pointers when absent; slice sections (`Actors`, `Tags`, `Screenshots`, `Magnets`) are always non-nil, empty slices rather than `nil` — including in JSON, which encodes `[]`, never `null`.
+- `VideoSummary.Score` is `*Score`: `nil` means the page has no score yet (normal for new releases), while a non-nil `Score` with `Value == 0` means the site explicitly reports a zero score. Always check for `nil` before dereferencing; the two states are never conflated.
 - All requests issued through one `*Client` share the same rate limiter, so concurrent callers never exceed the configured request budget.
 
 ## Errors
 
-Sentinel errors (`ErrInvalidConfig`, `ErrInvalidQuery`, `ErrNotFound`, `ErrRateLimited`, `ErrEmptyResult`, `ErrParse`) are checked with `errors.Is`. `OpError` wraps the failing operation and (when safe) a query-stripped request URL; `HTTPError` reports the raw non-2xx status code and maps 404/429 onto `ErrNotFound`/`ErrRateLimited` via `errors.Is`.
+Sentinel errors (`ErrInvalidConfig`, `ErrInvalidQuery`, `ErrNotFound`, `ErrRateLimited`, `ErrEmptyResult`, `ErrParse`, `ErrChallenge`, `ErrAuthenticationRequired`) are checked with `errors.Is`. `OpError` wraps the failing operation and (when safe) a query-stripped request URL; `HTTPError` reports the raw non-2xx status code and maps 404/429 onto `ErrNotFound`/`ErrRateLimited` via `errors.Is`. `ErrChallenge` means the response was classified as an access challenge (e.g. Cloudflare) rather than the requested page; the SDK never attempts to solve or bypass it — callers should switch network egress, supply a working proxy, or retry later. `ErrAuthenticationRequired` means the requested resource redirected to the site's login page; the login page is never fetched or passed to a scraper.
 
 ## CLI
 
@@ -202,6 +208,19 @@ javdbapi video --id ZNdEbV --output console
 | `--fail-fast`   | bool     | `false`             | Stop on the first hard error instead of accumulating failures                                       |
 
 `--concurrency` bounds how many videos are fetched in parallel within one list command; `--rate`/`--burst` bound how fast the shared `Client` issues requests overall. Raising `--concurrency` without raising `--rate` mostly increases queuing against the same request budget, not real fetch throughput.
+
+### `--summary-only`
+
+Available on every list command (`search`, `home`, `maker`, `actor`, `ranking`) but not on `video`. It requires `--output console`; combining it with `--output file` or `--output both` fails with the stable error `--summary-only requires --output console`.
+
+- Skips `Detail` and `Reviews` entirely — only the list pages themselves are fetched.
+- Never touches the on-disk cache: no read, no write, no output directory creation.
+- Paginates and deduplicates by `VideoID` exactly like the default mode, then prints each deduplicated `VideoSummary` as one NDJSON line, in discovery order.
+- The command summary's `SummariesOutput` field reports how many summaries were printed.
+
+```bash
+javdbapi search --keyword VR --summary-only --output console
+```
 
 ### search
 
@@ -288,7 +307,7 @@ javdbapi video --id ZNdEbV --output console
 javdbapi video --id ZNdEbV --base-url https://javdb.com --output both
 ```
 
-A video's cached document tracks `Detail` and `Reviews` freshness independently. If a prior run persisted `Detail` but the `Reviews` fetch failed, the failure is recorded under `partial_errors` in the cache document and the next invocation retries only the stale `Reviews`, reusing the already-fresh `Detail`.
+A video's cached document tracks `Detail` and `Reviews` freshness independently. If a prior run persisted `Detail` but the `Reviews` fetch failed, the failure is recorded under `partial_errors` in the cache document and the next invocation retries only the stale `Reviews`, reusing the already-fresh `Detail`. `partial_errors[].kind` includes `challenge` when the `Reviews` request was blocked by an access challenge and `authentication_required` when it redirected to the login page, alongside `not_found`, `rate_limited`, `empty_result`, `parse_error`, and `fetch_error`.
 
 ### AI / Programmatic Usage
 

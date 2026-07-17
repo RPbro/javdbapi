@@ -2,8 +2,10 @@ package cliapp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -24,10 +26,14 @@ func validateSharedOptions(shared SharedOptions) error {
 // RunListCommand paginates a list command, deduplicates discovered video IDs,
 // and dispatches them through a bounded worker pool for Detail/Reviews
 // fetching. Output is flushed in original discovery order regardless of
-// which worker finishes first.
+// which worker finishes first. In SummaryOnly mode, discovery output is the
+// only work performed: no Detail/Reviews request or cache access ever happens.
 func RunListCommand(ctx context.Context, fetcher Fetcher, store *clioutput.Store, req ListRequest) (Summary, error) {
 	if err := validateSharedOptions(req.Shared); err != nil {
 		return Summary{}, err
+	}
+	if req.SummaryOnly && req.Shared.OutputMode != OutputConsole {
+		return Summary{}, fmt.Errorf("--summary-only requires --output console")
 	}
 	if req.Page < 1 {
 		return Summary{}, fmt.Errorf("invalid --page %d: must be >= 1", req.Page)
@@ -60,7 +66,7 @@ func RunListCommand(ctx context.Context, fetcher Fetcher, store *clioutput.Store
 				continue
 			}
 			seen[item.ID] = struct{}{}
-			refs = append(refs, VideoRef{ID: item.ID, Title: item.Title, Code: item.Code, Page: page})
+			refs = append(refs, VideoRef{ID: item.ID, Title: item.Title, Code: item.Code, Page: page, Summary: item})
 		}
 
 		if !listPage.HasNext {
@@ -68,7 +74,29 @@ func RunListCommand(ctx context.Context, fetcher Fetcher, store *clioutput.Store
 		}
 	}
 
+	if req.SummaryOnly {
+		summary.Deduplicated = len(refs)
+		if err := writeSummaryOnlyOutput(req.Shared.Stdout, refs, &summary); err != nil {
+			return summary, err
+		}
+		return summary, nil
+	}
+
 	return processRefs(ctx, fetcher, store, req, refs, summary)
+}
+
+// writeSummaryOnlyOutput encodes each ref's VideoSummary as one NDJSON line
+// in discovery order. It never calls Detail, Reviews, or the cache store.
+func writeSummaryOnlyOutput(w io.Writer, refs []VideoRef, summary *Summary) error {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	for _, ref := range refs {
+		if err := enc.Encode(ref.Summary); err != nil {
+			return err
+		}
+		summary.SummariesOutput++
+	}
+	return nil
 }
 
 func fetchListPage(ctx context.Context, fetcher Fetcher, req ListRequest, page int) (javdbapi.Page[javdbapi.VideoSummary], error) {
@@ -333,6 +361,10 @@ func fetchDetail(ctx context.Context, fetcher Fetcher, store *clioutput.Store, s
 
 func reviewErrorKind(err error) string {
 	switch {
+	case errors.Is(err, javdbapi.ErrChallenge):
+		return "challenge"
+	case errors.Is(err, javdbapi.ErrAuthenticationRequired):
+		return "authentication_required"
 	case errors.Is(err, javdbapi.ErrNotFound):
 		return "not_found"
 	case errors.Is(err, javdbapi.ErrRateLimited):
@@ -351,6 +383,10 @@ func reviewErrorKind(err error) string {
 // request URL, search keyword, or response body the wrapped error may carry.
 func reviewErrorMessage(kind string) string {
 	switch kind {
+	case "challenge":
+		return "reviews request was challenged"
+	case "authentication_required":
+		return "reviews request requires authentication"
 	case "not_found":
 		return "reviews page not found"
 	case "rate_limited":

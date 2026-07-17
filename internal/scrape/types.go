@@ -19,7 +19,7 @@ type Summary struct {
 	Title        string
 	CoverURL     string
 	PublishedAt  time.Time
-	Score        Score
+	Score        *Score
 	Availability Availability
 }
 

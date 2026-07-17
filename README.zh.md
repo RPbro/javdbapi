@@ -148,6 +148,11 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("detail: %s, %d actors, %d magnets", detail.Summary.Code, len(detail.Actors), len(detail.Magnets))
+	if detail.Summary.Score != nil {
+		log.Printf("score: %.2f (%d ratings)", detail.Summary.Score.Value, detail.Summary.Score.Count)
+	} else {
+		log.Printf("score: not yet available")
+	}
 
 	reviews, err := client.Reviews(ctx, videoID)
 	if err != nil {
@@ -162,11 +167,12 @@ func main() {
 - `Home`、`Search`、`MakerVideos`、`ActorVideos`、`Ranking` 都返回 `Page[VideoSummary]`。`Page` 从不声明总页数——站点只提供 `rel="next"` 分页标记，请通过 `HasNext` 判断是否继续翻页。
 - `Detail` 与 `Reviews` 是针对 `VideoID` 的两个独立请求。获取 `Detail` 不会隐式拉取 `Reviews`；`Reviews` 拉取失败也不会使已经拉取成功的 `Detail` 失效。
 - `VideoDetail` 中的可选字段（`Director`、`Maker`、`Series`）缺失时为 `nil` 指针；切片字段（`Actors`、`Tags`、`Screenshots`、`Magnets`）始终是非 `nil` 的空切片——包括 JSON 序列化时，始终编码为 `[]`，而不是 `null`。
+- `VideoSummary.Score` 是 `*Score`：`nil` 表示页面尚未产生评分（新作品的正常状态）；非 `nil` 且 `Value == 0` 表示站点明确给出了零分。使用前务必先判断 `nil`，两种状态不可混淆。
 - 同一个 `*Client` 发出的所有请求共享同一个限流器，因此并发调用者永远不会超过配置的请求预算。
 
 ## 错误处理
 
-哨兵错误（`ErrInvalidConfig`、`ErrInvalidQuery`、`ErrNotFound`、`ErrRateLimited`、`ErrEmptyResult`、`ErrParse`）通过 `errors.Is` 判断。`OpError` 包装失败的操作名以及（在安全的情况下）去除了查询参数的请求 URL；`HTTPError` 报告原始的非 2xx 状态码，并通过 `errors.Is` 将 404/429 映射到 `ErrNotFound`/`ErrRateLimited`。
+哨兵错误（`ErrInvalidConfig`、`ErrInvalidQuery`、`ErrNotFound`、`ErrRateLimited`、`ErrEmptyResult`、`ErrParse`、`ErrChallenge`、`ErrAuthenticationRequired`）通过 `errors.Is` 判断。`OpError` 包装失败的操作名以及（在安全的情况下）去除了查询参数的请求 URL；`HTTPError` 报告原始的非 2xx 状态码，并通过 `errors.Is` 将 404/429 映射到 `ErrNotFound`/`ErrRateLimited`。`ErrChallenge` 表示响应被判定为访问限制（例如 Cloudflare challenge）而非目标页面本身；SDK 不会尝试破解或绕过该限制，调用方应更换出口网络、配置可用代理或稍后重试。`ErrAuthenticationRequired` 表示目标资源重定向到了站点登录页；SDK 不会继续请求登录页，也不会把登录页交给解析器。
 
 ## CLI
 
@@ -202,6 +208,19 @@ javdbapi video --id ZNdEbV --output console
 | `--fail-fast`   | bool     | `false`             | 遇到第一个硬失败立即停止，而不是持续累计失败                    |
 
 `--concurrency` 限制的是一次列表命令内并发抓取视频的数量；`--rate`/`--burst` 限制的是共享 `Client` 整体的请求速率。只调高 `--concurrency` 而不调高 `--rate`，多半只是增加了排队等待，而不会真正提升抓取吞吐量。
+
+### `--summary-only`
+
+所有列表命令（`search`、`home`、`maker`、`actor`、`ranking`）都支持该参数，`video` 不支持。必须配合 `--output console` 使用；与 `--output file` 或 `--output both` 同时使用会返回稳定错误 `--summary-only requires --output console`。
+
+- 完全跳过 `Detail` 与 `Reviews`，只请求列表页本身。
+- 不触碰磁盘缓存：不读取、不写入，也不创建输出目录。
+- 分页与按 `VideoID` 去重的行为与默认模式完全一致，随后按发现顺序把每个去重后的 `VideoSummary` 输出为一行 NDJSON。
+- 命令汇总中的 `SummariesOutput` 字段记录实际输出的摘要数量。
+
+```bash
+javdbapi search --keyword VR --summary-only --output console
+```
 
 ### search
 
@@ -288,7 +307,7 @@ javdbapi video --id ZNdEbV --output console
 javdbapi video --id ZNdEbV --base-url https://javdb.com --output both
 ```
 
-每个视频的缓存文档会独立追踪 `Detail` 与 `Reviews` 的新鲜度。如果上一次运行已经成功持久化 `Detail`，但 `Reviews` 拉取失败，失败信息会记录在缓存文档的 `partial_errors` 字段中；下一次调用只会重新拉取过期的 `Reviews`，并复用已经是新鲜状态的 `Detail`。
+每个视频的缓存文档会独立追踪 `Detail` 与 `Reviews` 的新鲜度。如果上一次运行已经成功持久化 `Detail`，但 `Reviews` 拉取失败，失败信息会记录在缓存文档的 `partial_errors` 字段中；下一次调用只会重新拉取过期的 `Reviews`，并复用已经是新鲜状态的 `Detail`。当 `Reviews` 请求被访问限制拦截时，`partial_errors[].kind` 会是 `challenge`；重定向到登录页时会是 `authentication_required`；其余可能值还包括 `not_found`、`rate_limited`、`empty_result`、`parse_error`、`fetch_error`。
 
 ### AI / 程序化使用
 

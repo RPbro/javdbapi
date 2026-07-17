@@ -96,6 +96,92 @@ func TestSearchCommandBuildsExpectedRequest(t *testing.T) {
 	assert.Equal(t, javdbapi.SearchQuery{Keyword: "VR", Page: 2}, fetcher.searchCalls[0])
 }
 
+func TestSummaryOnlyFlagAvailableOnListCommandsButNotVideo(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{"search", "home", "maker", "actor", "ranking"} {
+		t.Run(name, func(t *testing.T) {
+			var stdout bytes.Buffer
+			cmd := newCommand(stubBuilder(&fakeFetcher{}), &stdout, io.Discard)
+			err := cmd.Run(context.Background(), []string{"javdbapi", name, "--help"})
+			require.NoError(t, err)
+			assert.Contains(t, stdout.String(), "--summary-only")
+		})
+	}
+
+	var stdout bytes.Buffer
+	cmd := newCommand(stubBuilder(&fakeFetcher{}), &stdout, io.Discard)
+	err := cmd.Run(context.Background(), []string{"javdbapi", "video", "--help"})
+	require.NoError(t, err)
+	assert.NotContains(t, stdout.String(), "--summary-only")
+}
+
+func TestSummaryOnlyOutputsNDJSONWithoutDetailOrReviewCalls(t *testing.T) {
+	t.Parallel()
+
+	fetcher := &fakeFetcher{
+		page: javdbapi.Page[javdbapi.VideoSummary]{
+			Items:   []javdbapi.VideoSummary{{ID: "P9Jkq9", Code: "SNOS-177"}},
+			Number:  1,
+			HasNext: false,
+		},
+	}
+	var stdout bytes.Buffer
+	cmd := newCommand(stubBuilder(fetcher), &stdout, io.Discard)
+
+	err := cmd.Run(context.Background(), []string{
+		"javdbapi",
+		"search",
+		"--keyword", "VR",
+		"--summary-only",
+		"--output", "console",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, stdout.String(), `"id":"P9Jkq9"`)
+	assert.Contains(t, stdout.String(), `"code":"SNOS-177"`)
+	assert.Empty(t, fetcher.detailCalls, "summary-only must never call Detail")
+	assert.Empty(t, fetcher.reviewCalls, "summary-only must never call Reviews")
+}
+
+func TestSummaryOnlyLogsSummariesOutputCount(t *testing.T) {
+	t.Parallel()
+
+	fetcher := &fakeFetcher{
+		page: javdbapi.Page[javdbapi.VideoSummary]{
+			Items:   []javdbapi.VideoSummary{{ID: "a"}, {ID: "b"}},
+			Number:  1,
+			HasNext: false,
+		},
+	}
+	var stdout, stderr bytes.Buffer
+	cmd := newCommand(stubBuilder(fetcher), &stdout, &stderr)
+
+	err := cmd.Run(context.Background(), []string{
+		"javdbapi",
+		"search",
+		"--keyword", "VR",
+		"--summary-only",
+		"--output", "console",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, stderr.String(), "summaries_output=2")
+}
+
+func TestSummaryOnlyRejectsNonConsoleOutput(t *testing.T) {
+	t.Parallel()
+
+	cmd := newCommand(stubBuilder(&fakeFetcher{}), io.Discard, io.Discard)
+	err := cmd.Run(context.Background(), []string{
+		"javdbapi",
+		"search",
+		"--keyword", "VR",
+		"--summary-only",
+		"--output", "file",
+	})
+	require.Error(t, err)
+	assert.Equal(t, "--summary-only requires --output console", err.Error())
+}
+
 func TestVideoCommandRejectsPaginationFlags(t *testing.T) {
 	t.Parallel()
 

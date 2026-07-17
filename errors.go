@@ -7,12 +7,14 @@ import (
 )
 
 var (
-	ErrInvalidConfig = errors.New("invalid config")
-	ErrInvalidQuery  = errors.New("invalid query")
-	ErrNotFound      = errors.New("not found")
-	ErrRateLimited   = errors.New("rate limited")
-	ErrEmptyResult   = errors.New("empty result")
-	ErrParse         = errors.New("parse failed")
+	ErrInvalidConfig          = errors.New("invalid config")
+	ErrInvalidQuery           = errors.New("invalid query")
+	ErrNotFound               = errors.New("not found")
+	ErrRateLimited            = errors.New("rate limited")
+	ErrEmptyResult            = errors.New("empty result")
+	ErrParse                  = errors.New("parse failed")
+	ErrChallenge              = errors.New("challenge required")
+	ErrAuthenticationRequired = errors.New("authentication required")
 )
 
 // OpError identifies the failing operation and, when safe, the request URL.

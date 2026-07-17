@@ -191,16 +191,57 @@ func Ranking(base *url.URL, period, rankingType string, page int, locale string)
 	return u, nil
 }
 
-// SameHostRedirect mirrors http.Client.CheckRedirect's (req, via) shape but
-// takes the upcoming request's URL directly so it can be unit tested without
-// constructing a full *http.Request for the redirect target.
-func SameHostRedirect(next *url.URL, via []*http.Request) error {
+// effectivePort returns u's explicit port, or the scheme's default port if
+// none was given, so "https://host" and "https://host:443" compare equal.
+func effectivePort(u *url.URL) (string, error) {
+	if port := u.Port(); port != "" {
+		return port, nil
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http":
+		return "80", nil
+	case "https":
+		return "443", nil
+	default:
+		return "", fmt.Errorf("unsupported scheme %q", u.Scheme)
+	}
+}
+
+// SameOriginRedirect rejects a redirect whose scheme, hostname, or effective
+// port differs from the original request (via[0]), including an HTTPS to
+// HTTP downgrade, and caps the chain at 10 hops, mirroring net/http's own
+// default redirect limit.
+func SameOriginRedirect(next *url.URL, via []*http.Request) error {
 	if len(via) == 0 || next == nil {
 		return nil
 	}
-	original := via[0].URL
-	if original == nil || !strings.EqualFold(next.Host, original.Host) {
-		return fmt.Errorf("refusing cross-host redirect to %q", next.Host)
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
 	}
+
+	original := via[0].URL
+	if original == nil {
+		return nil
+	}
+
+	if !strings.EqualFold(next.Scheme, original.Scheme) {
+		return fmt.Errorf("refusing cross-scheme redirect to %q", next.Scheme)
+	}
+	if !strings.EqualFold(next.Hostname(), original.Hostname()) {
+		return fmt.Errorf("refusing cross-host redirect to %q", next.Hostname())
+	}
+
+	origPort, err := effectivePort(original)
+	if err != nil {
+		return fmt.Errorf("refusing redirect: %w", err)
+	}
+	nextPort, err := effectivePort(next)
+	if err != nil {
+		return fmt.Errorf("refusing redirect: %w", err)
+	}
+	if origPort != nextPort {
+		return fmt.Errorf("refusing cross-port redirect to %q", next.Host)
+	}
+
 	return nil
 }

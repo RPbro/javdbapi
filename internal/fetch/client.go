@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -15,6 +17,39 @@ import (
 
 // ErrResponseTooLarge is returned when a response body exceeds Config.MaxResponseBytes.
 var ErrResponseTooLarge = errors.New("fetch: response exceeds maximum allowed size")
+
+// ErrChallenge is returned when a response is classified as an access
+// challenge (e.g. Cloudflare) rather than the requested page. Detection is
+// deliberately narrow: an ordinary parse failure on unrelated HTML must
+// never be classified as a challenge.
+var ErrChallenge = errors.New("fetch: challenge required")
+
+// challengePlatformMarker must be present for a 2xx HTML body to be
+// considered for challenge classification (no cf-mitigated header case).
+// It alone is not sufficient — some ordinary pages reference Cloudflare's
+// challenge-platform assets for unrelated widgets — so a second, independent
+// signal is required: either the interstitial's own JS bootstrap object
+// (_cf_chl_opt, present across interstitial/managed/JS challenge variants,
+// even when the page title isn't the fixed "Just a moment..." text observed
+// in some responses) or that fixed title itself.
+var (
+	challengePlatformMarker = []byte("cdn-cgi/challenge-platform")
+	challengeOptionsMarker  = []byte("_cf_chl_opt")
+	challengeTitleMarker    = []byte("Just a moment...")
+)
+
+func looksLikeChallengeHTML(contentType string, body []byte) bool {
+	if strings.TrimSpace(contentType) == "" {
+		contentType = http.DetectContentType(body)
+	}
+	if !strings.Contains(strings.ToLower(contentType), "html") {
+		return false
+	}
+	if !bytes.Contains(body, challengePlatformMarker) {
+		return false
+	}
+	return bytes.Contains(body, challengeOptionsMarker) || bytes.Contains(body, challengeTitleMarker)
+}
 
 // StatusError reports a non-2xx HTTP response for a specific request URL.
 type StatusError struct {
@@ -36,7 +71,7 @@ const (
 
 // Config assembles everything a Client needs. The root package is
 // responsible for translating its public ClientConfig into this shape and
-// for supplying CheckRedirect (typically internal/siteurl.SameHostRedirect)
+// for supplying CheckRedirect (typically internal/siteurl.SameOriginRedirect)
 // so this package never has to import the root package.
 type Config struct {
 	HTTPClient       *http.Client
@@ -227,10 +262,11 @@ func (c *Client) doAttempt(ctx context.Context, u *url.URL) ([]byte, http.Header
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetch: do request: %w", err)
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.Header.Get("cf-mitigated") == "challenge" {
+		return nil, nil, ErrChallenge
+	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, resp.Header, &StatusError{StatusCode: resp.StatusCode, URL: u.String()}
@@ -242,6 +278,9 @@ func (c *Client) doAttempt(ctx context.Context, u *url.URL) ([]byte, http.Header
 	}
 	if int64(len(body)) > c.maxResponseBytes {
 		return nil, nil, ErrResponseTooLarge
+	}
+	if looksLikeChallengeHTML(resp.Header.Get("Content-Type"), body) {
+		return nil, nil, ErrChallenge
 	}
 	return body, nil, nil
 }

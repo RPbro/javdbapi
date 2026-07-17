@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,6 +167,106 @@ func TestRunListCommandDeduplicatesIDsAcrossPages(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, Summary{PagesScanned: 2, Candidates: 4, Deduplicated: 3, Fetched: 3}, summary)
 	assert.ElementsMatch(t, []javdbapi.VideoID{"a", "b", "c"}, fetcher.detailCalls)
+}
+
+func TestRunListCommandSummaryOnlySkipsDetailAndReviews(t *testing.T) {
+	t.Parallel()
+
+	store := clioutput.NewStore(t.TempDir(), time.Now)
+	fetcher := &fakeFetcher{
+		pages: map[int]javdbapi.Page[javdbapi.VideoSummary]{
+			1: {Items: []javdbapi.VideoSummary{{ID: "a", Code: "AAA-001"}, {ID: "b", Code: "BBB-002"}}, Number: 1, HasNext: true},
+			2: {Items: []javdbapi.VideoSummary{{ID: "b", Code: "BBB-002"}, {ID: "c", Code: "CCC-003"}}, Number: 2, HasNext: false},
+		},
+	}
+
+	var stdout bytes.Buffer
+	summary, err := RunListCommand(context.Background(), fetcher, store, ListRequest{
+		Shared: SharedOptions{
+			OutputMode:  OutputConsole,
+			StaleAfter:  24 * time.Hour,
+			Concurrency: 2,
+			Stdout:      &stdout,
+			Logger:      testLogger(),
+		},
+		Command:     CommandSearch,
+		Page:        1,
+		MaxPages:    5,
+		SummaryOnly: true,
+		Search:      &javdbapi.SearchQuery{Keyword: "VR"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, Summary{PagesScanned: 2, Candidates: 4, Deduplicated: 3, SummariesOutput: 3}, summary)
+	assert.Empty(t, fetcher.detailCalls, "summary-only must never call Detail")
+	assert.Empty(t, fetcher.reviewsCalls, "summary-only must never call Reviews")
+
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	require.Len(t, lines, 3)
+	assert.Contains(t, lines[0], `"id":"a"`)
+	assert.Contains(t, lines[1], `"id":"b"`)
+	assert.Contains(t, lines[2], `"id":"c"`)
+	assert.NotContains(t, lines[0], `"score"`, "nil score must be omitted from summary-only output")
+}
+
+func TestRunListCommandSummaryOnlyRejectsNonConsoleOutput(t *testing.T) {
+	t.Parallel()
+
+	store := clioutput.NewStore(t.TempDir(), time.Now)
+	fetcher := &fakeFetcher{}
+
+	for _, mode := range []OutputMode{OutputFile, OutputBoth} {
+		t.Run(string(mode), func(t *testing.T) {
+			_, err := RunListCommand(context.Background(), fetcher, store, ListRequest{
+				Shared: SharedOptions{
+					OutputMode:  mode,
+					OutputDir:   t.TempDir(),
+					StaleAfter:  24 * time.Hour,
+					Concurrency: 1,
+					Stdout:      io.Discard,
+					Logger:      testLogger(),
+				},
+				Command:     CommandSearch,
+				Page:        1,
+				MaxPages:    1,
+				SummaryOnly: true,
+				Search:      &javdbapi.SearchQuery{Keyword: "VR"},
+			})
+			require.Error(t, err)
+			assert.Equal(t, "--summary-only requires --output console", err.Error())
+		})
+	}
+}
+
+func TestRunListCommandSummaryOnlyHasNoFilesystemSideEffects(t *testing.T) {
+	t.Parallel()
+
+	outputDir := filepath.Join(t.TempDir(), "does-not-exist-yet")
+	store := clioutput.NewStore(outputDir, time.Now)
+	fetcher := &fakeFetcher{
+		pages: map[int]javdbapi.Page[javdbapi.VideoSummary]{
+			1: {Items: []javdbapi.VideoSummary{{ID: "a"}}, Number: 1, HasNext: false},
+		},
+	}
+
+	_, err := RunListCommand(context.Background(), fetcher, store, ListRequest{
+		Shared: SharedOptions{
+			OutputMode:  OutputConsole,
+			OutputDir:   outputDir,
+			StaleAfter:  24 * time.Hour,
+			Concurrency: 1,
+			Stdout:      io.Discard,
+			Logger:      testLogger(),
+		},
+		Command:     CommandSearch,
+		Page:        1,
+		MaxPages:    1,
+		SummaryOnly: true,
+		Search:      &javdbapi.SearchQuery{Keyword: "VR"},
+	})
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(outputDir)
+	assert.True(t, os.IsNotExist(statErr), "summary-only must not create the output dir")
 }
 
 func TestRunListCommandReturnsNonEmptyResultListErrors(t *testing.T) {
@@ -342,6 +444,47 @@ func TestRunVideoCommandRequiresID(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestRunVideoCommandDoesNotProduceParseErrorForRealEmptyReviews(t *testing.T) {
+	t.Parallel()
+
+	detailFixture, err := os.ReadFile(filepath.Join("..", "scrape", "testdata", "detail-complete.html"))
+	require.NoError(t, err)
+	reviewsFixture, err := os.ReadFile(filepath.Join("..", "scrape", "testdata", "reviews-empty-message-body.html"))
+	require.NoError(t, err)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/reviews/lastest") {
+			_, _ = w.Write(reviewsFixture)
+			return
+		}
+		_, _ = w.Write(detailFixture)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := javdbapi.NewClient(javdbapi.ClientConfig{
+		BaseURL:   server.URL,
+		Retry:     javdbapi.RetryPolicy{Disabled: true},
+		RateLimit: javdbapi.RateLimitPolicy{Disabled: true},
+	})
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	store := clioutput.NewStore(dir, time.Now)
+
+	summary, err := RunVideoCommand(context.Background(), ClientFetcher{Client: client}, store, VideoRequest{
+		Shared: SharedOptions{OutputMode: OutputFile, OutputDir: dir, StaleAfter: 24 * time.Hour, Stdout: io.Discard, Logger: testLogger()},
+		ID:     "P9Jkq9",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, Summary{Fetched: 1}, summary)
+
+	state, err := store.Load("P9Jkq9", 24*time.Hour)
+	require.NoError(t, err)
+	require.NotNil(t, state.Document)
+	assert.Empty(t, state.Document.PartialErrors, "the real empty-reviews notice must not be recorded as a partial parse_error")
+	assert.Empty(t, state.Document.Reviews)
+}
+
 func TestRunVideoCommandSkipsFreshCache(t *testing.T) {
 	t.Parallel()
 
@@ -408,6 +551,56 @@ func TestRunVideoCommandPersistsDetailDespiteReviewsFailureDefaultMode(t *testin
 	assert.Equal(t, "reviews", state.Document.PartialErrors[0].Component)
 	assert.Equal(t, "fetch_error", state.Document.PartialErrors[0].Kind)
 	assert.Contains(t, stdout.String(), `"id":"P9Jkq9"`)
+}
+
+func TestRunVideoCommandMapsChallengeToStablePartialErrorKind(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	store := clioutput.NewStore(dir, time.Now)
+	fetcher := &fakeFetcher{
+		reviewsErrs: map[javdbapi.VideoID]error{"P9Jkq9": &javdbapi.OpError{Op: "reviews.fetch", Err: javdbapi.ErrChallenge}},
+	}
+
+	summary, err := RunVideoCommand(context.Background(), fetcher, store, VideoRequest{
+		Shared: SharedOptions{OutputMode: OutputFile, OutputDir: dir, StaleAfter: 24 * time.Hour, Stdout: io.Discard, Logger: testLogger()},
+		ID:     "P9Jkq9",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, Summary{PartialFailed: 1}, summary)
+
+	state, err := store.Load("P9Jkq9", 24*time.Hour)
+	require.NoError(t, err)
+	require.NotNil(t, state.Document)
+	require.Len(t, state.Document.PartialErrors, 1)
+	assert.Equal(t, "challenge", state.Document.PartialErrors[0].Kind)
+	assert.Equal(t, "reviews request was challenged", state.Document.PartialErrors[0].Message)
+}
+
+func TestRunVideoCommandMapsAuthenticationRequiredToStablePartialErrorKind(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	store := clioutput.NewStore(dir, time.Now)
+	fetcher := &fakeFetcher{
+		reviewsErrs: map[javdbapi.VideoID]error{
+			"P9Jkq9": &javdbapi.OpError{Op: "reviews.fetch", Err: javdbapi.ErrAuthenticationRequired},
+		},
+	}
+
+	summary, err := RunVideoCommand(context.Background(), fetcher, store, VideoRequest{
+		Shared: SharedOptions{OutputMode: OutputFile, OutputDir: dir, StaleAfter: 24 * time.Hour, Stdout: io.Discard, Logger: testLogger()},
+		ID:     "P9Jkq9",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, Summary{PartialFailed: 1}, summary)
+
+	state, err := store.Load("P9Jkq9", 24*time.Hour)
+	require.NoError(t, err)
+	require.NotNil(t, state.Document)
+	require.Len(t, state.Document.PartialErrors, 1)
+	assert.Equal(t, "authentication_required", state.Document.PartialErrors[0].Kind)
+	assert.Equal(t, "reviews request requires authentication", state.Document.PartialErrors[0].Message)
 }
 
 func TestRunVideoCommandPartialErrorMessageDoesNotLeakURL(t *testing.T) {

@@ -2,12 +2,25 @@ package javdbapi
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSanitizedURLStripsSensitiveParts(t *testing.T) {
+	u, err := url.Parse("https://user:pass@javdb.com/search?q=secret#frag")
+	require.NoError(t, err)
+
+	got := sanitizedURL(u)
+	assert.Equal(t, "https://javdb.com/search", got)
+	assert.NotContains(t, got, "user")
+	assert.NotContains(t, got, "pass")
+	assert.NotContains(t, got, "secret")
+	assert.NotContains(t, got, "frag")
+}
 
 func TestClientConfigDefaults(t *testing.T) {
 	got, err := normalizeClientConfig(ClientConfig{})

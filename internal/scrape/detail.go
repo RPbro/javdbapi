@@ -32,8 +32,7 @@ func ParseDetail(doc *goquery.Document, id string) (Result[Detail], error) {
 		code            string
 		publishedAt     time.Time
 		sawDate         bool
-		score           Score
-		sawScore        bool
+		score           *Score
 		durationMinutes *int
 		director        *NamedRef
 		maker           *NamedRef
@@ -71,16 +70,12 @@ func ParseDetail(doc *goquery.Document, id string) (Result[Detail], error) {
 		case labelScore:
 			value := strings.TrimSpace(valueSel.Text())
 			if value == "" {
-				panelErr = fmt.Errorf("%w: detail missing score", ErrParse)
-				return false
+				warnings = append(warnings, Warning{Field: "score", Message: "empty score value"})
+			} else if s, err := parseScore(value); err != nil {
+				warnings = append(warnings, Warning{Field: "score", Message: err.Error()})
+			} else {
+				score = &s
 			}
-			s, err := parseScore(value)
-			if err != nil {
-				panelErr = err
-				return false
-			}
-			score = s
-			sawScore = true
 		case labelDuration:
 			value := strings.TrimSpace(valueSel.Text())
 			if value != "" {
@@ -157,9 +152,6 @@ func ParseDetail(doc *goquery.Document, id string) (Result[Detail], error) {
 	}
 	if !sawDate {
 		return result, fmt.Errorf("%w: detail missing date", ErrParse)
-	}
-	if !sawScore {
-		return result, fmt.Errorf("%w: detail missing score", ErrParse)
 	}
 
 	// Want/watched counts share a single free-form text node, e.g.

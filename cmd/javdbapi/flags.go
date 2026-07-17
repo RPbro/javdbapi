@@ -31,6 +31,7 @@ func listFlags() []cli.Flag {
 	return append(sharedFlags(),
 		&cli.IntFlag{Name: "page", Value: 1},
 		&cli.IntFlag{Name: "max-pages", Value: 1},
+		&cli.BoolFlag{Name: "summary-only", Usage: "output VideoSummary NDJSON only; skips Detail/Reviews and cache (requires --output console)"},
 	)
 }
 

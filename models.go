@@ -27,7 +27,7 @@ type VideoSummary struct {
 	Title        string       `json:"title"`
 	CoverURL     string       `json:"cover_url,omitempty"`
 	PublishedAt  time.Time    `json:"published_at"`
-	Score        Score        `json:"score"`
+	Score        *Score       `json:"score,omitempty"`
 	Availability Availability `json:"availability"`
 }
 

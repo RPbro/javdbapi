@@ -41,15 +41,16 @@ type SharedOptions struct {
 }
 
 type ListRequest struct {
-	Shared   SharedOptions
-	Command  CommandName
-	Page     int
-	MaxPages int
-	Home     *javdbapi.HomeQuery
-	Search   *javdbapi.SearchQuery
-	Maker    *javdbapi.MakerVideosQuery
-	Actor    *javdbapi.ActorVideosQuery
-	Ranking  *javdbapi.RankingQuery
+	Shared      SharedOptions
+	Command     CommandName
+	Page        int
+	MaxPages    int
+	SummaryOnly bool
+	Home        *javdbapi.HomeQuery
+	Search      *javdbapi.SearchQuery
+	Maker       *javdbapi.MakerVideosQuery
+	Actor       *javdbapi.ActorVideosQuery
+	Ranking     *javdbapi.RankingQuery
 }
 
 type VideoRequest struct {
@@ -58,21 +59,23 @@ type VideoRequest struct {
 }
 
 type VideoRef struct {
-	ID    javdbapi.VideoID
-	Title string
-	Code  string
-	Page  int
+	ID      javdbapi.VideoID
+	Title   string
+	Code    string
+	Page    int
+	Summary javdbapi.VideoSummary
 }
 
 // Summary reports command-wide outcomes. PartialFailed counts videos whose
 // Detail persisted successfully but whose Reviews fetch failed; it is never
 // conflated with Failed, which counts videos that produced no usable output.
 type Summary struct {
-	PagesScanned  int
-	Candidates    int
-	Deduplicated  int
-	Fetched       int
-	SkippedFresh  int
-	Failed        int
-	PartialFailed int
+	PagesScanned    int
+	Candidates      int
+	Deduplicated    int
+	Fetched         int
+	SkippedFresh    int
+	Failed          int
+	PartialFailed   int
+	SummariesOutput int
 }

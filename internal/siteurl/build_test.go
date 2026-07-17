@@ -36,19 +36,54 @@ func TestVideoRejectsHostileID(t *testing.T) {
 	}
 }
 
-func TestSameHostRedirectRejectsForeignHost(t *testing.T) {
-	err := siteurl.SameHostRedirect(mustURL(t, "https://evil.example/v/x"), []*http.Request{{URL: mustURL(t, "https://javdb.com/v/x")}})
+func TestSameOriginRedirect(t *testing.T) {
+	original := mustURL(t, "https://javdb.com/v/x")
+
+	cases := []struct {
+		name    string
+		next    string
+		wantErr bool
+	}{
+		{"same origin different path", "https://javdb.com/v/y", false},
+		{"host case difference", "https://JAVDB.com/v/y", false},
+		{"implicit and explicit default port are equal", "https://javdb.com:443/v/y", false},
+		{"hostname change", "https://evil.example/v/x", true},
+		{"scheme change", "http://javdb.com/v/x", true},
+		{"effective port change", "https://javdb.com:8443/v/x", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := siteurl.SameOriginRedirect(mustURL(t, tc.next), []*http.Request{{URL: original}})
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSameOriginRedirectRejectsHTTPSDowngrade(t *testing.T) {
+	err := siteurl.SameOriginRedirect(
+		mustURL(t, "http://javdb.com/v/x"),
+		[]*http.Request{{URL: mustURL(t, "https://javdb.com/v/x")}},
+	)
 	require.Error(t, err)
 }
 
-func TestSameHostRedirectAllowsSameHost(t *testing.T) {
-	err := siteurl.SameHostRedirect(mustURL(t, "https://javdb.com/v/y"), []*http.Request{{URL: mustURL(t, "https://javdb.com/v/x")}})
+func TestSameOriginRedirectAllowsFirstRequest(t *testing.T) {
+	err := siteurl.SameOriginRedirect(mustURL(t, "https://javdb.com/v/x"), nil)
 	require.NoError(t, err)
 }
 
-func TestSameHostRedirectAllowsFirstRequest(t *testing.T) {
-	err := siteurl.SameHostRedirect(mustURL(t, "https://javdb.com/v/x"), nil)
-	require.NoError(t, err)
+func TestSameOriginRedirectRejectsTenthRedirect(t *testing.T) {
+	via := make([]*http.Request, 10)
+	for i := range via {
+		via[i] = &http.Request{URL: mustURL(t, "https://javdb.com/v/x")}
+	}
+	err := siteurl.SameOriginRedirect(mustURL(t, "https://javdb.com/v/y"), via)
+	require.Error(t, err)
 }
 
 func TestSearchURL(t *testing.T) {

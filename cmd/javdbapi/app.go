@@ -95,6 +95,7 @@ func newListCommand(
 				return err
 			}
 			req.Shared = shared
+			req.SummaryOnly = cmd.Bool("summary-only")
 
 			fetcher, err := buildFetcher(cmd, logger)
 			if err != nil {
@@ -145,6 +146,7 @@ func logSummary(logger *slog.Logger, s cliapp.Summary, err error) {
 		"skipped_fresh", s.SkippedFresh,
 		"failed", s.Failed,
 		"partial_failed", s.PartialFailed,
+		"summaries_output", s.SummariesOutput,
 	}
 	if err != nil {
 		logger.Warn("finished with errors", fields...)
