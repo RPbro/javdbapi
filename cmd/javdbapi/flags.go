@@ -10,15 +10,21 @@ import (
 	"github.com/RPbro/javdbapi/internal/cliapp"
 )
 
+const (
+	defaultBaseURL     = "https://javdb.com"
+	defaultHTTPTimeout = 30 * time.Second
+)
+
 func sharedFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{Name: "output", Usage: outputModeSpec.usage()},
 		&cli.StringFlag{Name: "output-dir", Value: "./output", Usage: "directory for output files"},
 		&cli.DurationFlag{Name: "stale-after", Value: 24 * time.Hour, Usage: "skip fetch when cached file is newer than duration, e.g. 24h, 48h"},
 		&cli.IntFlag{Name: "concurrency", Value: 2, Usage: "number of videos fetched concurrently (1-16)"},
-		&cli.DurationFlag{Name: "timeout", Value: 30 * time.Second, Usage: "HTTP request timeout"},
+		&cli.DurationFlag{Name: "timeout", Value: defaultHTTPTimeout, Usage: "HTTP request timeout"},
 		&cli.StringFlag{Name: "proxy-url", Usage: "HTTP/SOCKS5 proxy URL, e.g. http://127.0.0.1:7890"},
-		&cli.StringFlag{Name: "base-url", Value: "https://javdb.com", Usage: "override base URL"},
+		&cli.StringFlag{Name: "base-url", Value: defaultBaseURL, Usage: "override base URL"},
+		&cli.StringFlag{Name: "cookie-file", Usage: "file containing the Cookie request header value from an active login session"},
 		&cli.StringFlag{Name: "user-agent", Usage: "custom User-Agent header"},
 		&cli.Float64Flag{Name: "rate", Value: 1, Usage: "requests per second"},
 		&cli.IntFlag{Name: "burst", Value: 1, Usage: "rate limiter burst size"},

@@ -47,6 +47,8 @@ func main() {
 
 `BaseURL`, `Locale`, `UserAgent`, `HTTP.Timeout`, `HTTP.MaxResponseBytes`, `Retry`, and `RateLimit` all have defaults when left zero-valued. `HTTP.Client` cannot be combined with `HTTP.Timeout` or `HTTP.ProxyURL` — supply one or the other, not both.
 
+For requests that require sign-in, pass a `*http.Client` with an `http.CookieJar` holding your active site session through `HTTP.Client`. Configure any timeout or proxy on that client.
+
 ## Typed IDs
 
 Every resource ID (`VideoID`, `ActorID`, `MakerID`, `DirectorID`, `SeriesID`) is a distinct string type, constructed only through its `Parse*` function. The SDK never accepts arbitrary absolute URLs as input — only validated in-site IDs:
@@ -201,6 +203,7 @@ javdbapi video --id ZNdEbV --output console
 | `--timeout`     | duration | `30s`               | HTTP request timeout                                                                                |
 | `--proxy-url`   | string   | —                   | HTTP/SOCKS5 proxy URL                                                                               |
 | `--base-url`    | string   | `https://javdb.com` | Override base URL                                                                                   |
+| `--cookie-file` | string   | —                   | File containing a login session's `Cookie` request header value                                    |
 | `--user-agent`  | string   | —                   | Custom User-Agent header                                                                            |
 | `--rate`        | float    | `1`                 | Requests per second shared across all workers of one command invocation                             |
 | `--burst`       | int      | `1`                 | Rate limiter burst size                                                                             |
@@ -208,6 +211,17 @@ javdbapi video --id ZNdEbV --output console
 | `--fail-fast`   | bool     | `false`             | Stop on the first hard error instead of accumulating failures                                       |
 
 `--concurrency` bounds how many videos are fetched in parallel within one list command; `--rate`/`--burst` bound how fast the shared `Client` issues requests overall. Raising `--concurrency` without raising `--rate` mostly increases queuing against the same request budget, not real fetch throughput.
+
+### Login session
+
+If a search returns `authentication required`, sign in to the site in your browser and run the same search. In the browser's Network panel, copy the value of the successful search request's `Cookie` header into a private file outside the repository. Save it on one line as `name=value; other=value`, omitting the `Cookie:` prefix. The file contains credentials for your account.
+
+```bash
+javdbapi search --keyword VR --summary-only --output console \
+  --cookie-file "$HOME/.javdb-cookie"
+```
+
+Use the same HTTPS base URL as the browser. If the session expires, sign in again and replace the file's contents.
 
 ### `--summary-only`
 

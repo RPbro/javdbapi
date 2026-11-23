@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 
@@ -87,31 +86,11 @@ func buildHTTPClient(cfg HTTPConfig) (*http.Client, error) {
 		return cfg.Client, nil
 	}
 
-	baseTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return nil, fmt.Errorf("%w: default transport is not *http.Transport", ErrInvalidConfig)
+	client, err := fetch.NewHTTPClient(cfg.Timeout, cfg.ProxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
 	}
-	transport := baseTransport.Clone()
-
-	if proxyURL := strings.TrimSpace(cfg.ProxyURL); proxyURL != "" {
-		parsed, err := url.Parse(proxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("%w: invalid proxy url", ErrInvalidConfig)
-		}
-		scheme := strings.ToLower(parsed.Scheme)
-		switch scheme {
-		case "http", "https", "socks5", "socks5h":
-		default:
-			return nil, fmt.Errorf("%w: unsupported proxy scheme %q", ErrInvalidConfig, scheme)
-		}
-		parsed.Scheme = scheme
-		if parsed.Host == "" {
-			return nil, fmt.Errorf("%w: invalid proxy url: missing host", ErrInvalidConfig)
-		}
-		transport.Proxy = http.ProxyURL(parsed)
-	}
-
-	return &http.Client{Timeout: cfg.Timeout, Transport: transport}, nil
+	return client, nil
 }
 
 // VideoURL returns a human-shareable link for id. id is expected to come

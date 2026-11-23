@@ -47,6 +47,8 @@ func main() {
 
 `BaseURL`、`Locale`、`UserAgent`、`HTTP.Timeout`、`HTTP.MaxResponseBytes`、`Retry`、`RateLimit` 留空（零值）时都会使用默认值。`HTTP.Client` 不能与 `HTTP.Timeout` 或 `HTTP.ProxyURL` 同时设置——二选一。
 
+如果请求需要登录，通过 `HTTP.Client` 传入 `*http.Client`，并在其 `http.CookieJar` 中保存该站点的有效登录会话。需要超时或代理时，直接在这个客户端上配置。
+
 ## 强类型 ID
 
 每一种资源 ID（`VideoID`、`ActorID`、`MakerID`、`DirectorID`、`SeriesID`）都是独立的字符串类型，只能通过对应的 `Parse*` 函数构造。SDK 从不接受任意的绝对 URL 作为输入——只接受经过校验的站内 ID：
@@ -201,6 +203,7 @@ javdbapi video --id ZNdEbV --output console
 | `--timeout`     | duration | `30s`               | HTTP 请求超时                                                   |
 | `--proxy-url`   | string   | —                   | HTTP/SOCKS5 代理地址                                            |
 | `--base-url`    | string   | `https://javdb.com` | 覆盖基础地址                                                    |
+| `--cookie-file` | string   | —                   | 保存了登录会话的 `Cookie` 请求头值的文件                         |
 | `--user-agent`  | string   | —                   | 自定义 User-Agent                                               |
 | `--rate`        | float    | `1`                 | 一次命令调用内所有 worker 共享的每秒请求数                      |
 | `--burst`       | int      | `1`                 | 限流器的突发容量                                                |
@@ -208,6 +211,17 @@ javdbapi video --id ZNdEbV --output console
 | `--fail-fast`   | bool     | `false`             | 遇到第一个硬失败立即停止，而不是持续累计失败                    |
 
 `--concurrency` 限制的是一次列表命令内并发抓取视频的数量；`--rate`/`--burst` 限制的是共享 `Client` 整体的请求速率。只调高 `--concurrency` 而不调高 `--rate`，多半只是增加了排队等待，而不会真正提升抓取吞吐量。
+
+### 登录会话
+
+搜索报 `authentication required` 时，先在浏览器登录站点并执行相同的搜索。在开发者工具的 Network 面板找到成功的搜索请求，将请求头 `Cookie` 的值单独保存为一行，格式为 `name=value; other=value`，省略 `Cookie:` 前缀。文件含账号凭据，请保存在仓库之外的私有位置。
+
+```bash
+javdbapi search --keyword VR --summary-only --output console \
+  --cookie-file "$HOME/.javdb-cookie"
+```
+
+使用与浏览器相同的 HTTPS 基础地址。会话过期后重新登录并更新文件内容。
 
 ### `--summary-only`
 

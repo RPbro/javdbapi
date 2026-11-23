@@ -115,7 +115,7 @@ func newListCommand(
 // javdbapi.ClientConfig, so a single --debug flag controls CLI and SDK log
 // verbosity together.
 func buildRealFetcher(cmd *cli.Command, logger *slog.Logger) (cliapp.Fetcher, error) {
-	client, err := javdbapi.NewClient(javdbapi.ClientConfig{
+	config := javdbapi.ClientConfig{
 		BaseURL:   cmd.String("base-url"),
 		UserAgent: cmd.String("user-agent"),
 		HTTP: javdbapi.HTTPConfig{
@@ -127,7 +127,16 @@ func buildRealFetcher(cmd *cli.Command, logger *slog.Logger) (cliapp.Fetcher, er
 			Burst:             cmd.Int("burst"),
 		},
 		Logger: logger,
-	})
+	}
+	if filename := cmd.String("cookie-file"); filename != "" {
+		httpClient, err := newCookieHTTPClient(filename, config.BaseURL, config.HTTP)
+		if err != nil {
+			return nil, err
+		}
+		config.HTTP = javdbapi.HTTPConfig{Client: httpClient}
+	}
+
+	client, err := javdbapi.NewClient(config)
 	if err != nil {
 		return nil, err
 	}
